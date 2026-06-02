@@ -145,32 +145,57 @@
   }
 /* Mobile Responsive Design */
 @media (max-width: 768px) {
+  header { padding: 16px 16px 0; }
+  .header-inner { gap: 10px; }
+  .logo { font-size: 20px; }
+  .hdr-btns { width: 100%; display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hdr-btns .btn, .hdr-btns .btn-ghost { width: 100%; text-align: center; padding: 10px 8px; font-size: 13px; min-height: 42px; }
 
-  body {
-    padding: 10px;
-  }
+  .wrap { padding: 0 12px; }
+  .summary-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 18px !important; }
+  .stat-sub { font-size: 11px; }
 
-  button {
-    width: 100%;
-    margin-top: 8px;
-    min-height: 48px;
-    font-size: 16px;
-  }
+  .date-bar { padding: 10px 12px; gap: 8px; }
+  .date-bar input { width: 140px !important; font-size: 14px; }
+  .date-tip { display: none; }
 
-  input,
-  textarea,
-  select {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 16px;
-  }
+  .filters { gap: 6px; }
+  .pill { padding: 5px 10px; font-size: 12px; }
+  #search { max-width: 100% !important; min-width: 120px; }
 
-  table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
+  /* Table → card layout on mobile */
+  .table-wrap { overflow-x: unset; }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  tbody tr { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; padding: 12px 14px; cursor: pointer; }
+  tbody tr:hover { background: #1A2035; }
+  tbody td { padding: 4px 0; border: none; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  tbody td::before { content: attr(data-label); font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; margin-right: 8px; }
+  tbody td:first-child { font-size: 14px; font-weight: 700; display: block; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  tbody td:first-child::before { display: none; }
+  tbody td:last-child { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); justify-content: flex-end; }
+  tbody td:last-child::before { display: none; }
+  tr.expanded-row { border-radius: 0 0 12px 12px; margin-top: -10px; border-top: none; padding: 10px 14px; }
 
+  .modal { padding: 18px; max-height: 95vh; }
+  .form-grid { grid-template-columns: 1fr !important; }
+  .span2 { grid-column: 1 !important; }
+  .modal-footer { flex-direction: column-reverse; }
+  .modal-footer .btn, .modal-footer .btn-ghost { width: 100%; text-align: center; }
+
+  .legend { grid-template-columns: 1fr 1fr; }
+  .tip-box { font-size: 12px; }
+
+  /* View toggle */
+  #btnTranche, #btnFund { padding: 6px 10px; font-size: 11px; }
+}
+
+@media (max-width: 420px) {
+  .summary-grid { grid-template-columns: 1fr 1fr !important; }
+  .hdr-btns { grid-template-columns: 1fr; }
+  .legend { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -280,7 +305,10 @@
     <div class="form-grid">
       <div class="span2">
         <label class="field-label">Investment Name *</label>
-        <input id="f_name" placeholder="e.g. Parag Parikh Flexi Cap — SIP Apr 2025"/>
+        <input id="f_name" placeholder="e.g. Parag Parikh Flexi Cap — SIP Apr 2025"
+          list="fundNameList" autocomplete="off"
+          oninput="autoFillCategory()"/>
+        <datalist id="fundNameList"></datalist>
       </div>
       <div>
         <label class="field-label">Category *</label>
@@ -304,8 +332,8 @@
         <input id="f_amount" placeholder="e.g. 6000" type="number"/>
       </div>
       <div>
-        <label class="field-label">Date (DD/MM/YYYY)</label>
-        <input type="text" id="f_date" placeholder="DD/MM/YYYY" maxlength="10" oninput="autoSlashDate(this)"/>
+        <label class="field-label">Date</label>
+        <input type="date" id="f_date" style="color-scheme:dark"/>
       </div>
       <div class="span2">
         <label class="field-label">Notes</label>
@@ -762,12 +790,12 @@ function render() {
             <div style="font-weight:600;font-size:14px;color:#E2E8F0">${inv.name}</div>
             ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
           </td>
-          <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
-          <td style="font-weight:600;font-size:14px">${formatINR(inv.investedAmount)}</td>
-          <td style="font-size:13px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
-          <td style="font-size:13px;color:#CBD5E1">${hl}</td>
-          <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span></td>
-          <td><span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span></td>
+          <td data-label="Category"><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
+          <td data-label="Invested" style="font-weight:600;font-size:14px">${formatINR(inv.investedAmount)}</td>
+          <td data-label="Date" style="font-size:13px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
+          <td data-label="Holding" style="font-size:13px;color:#CBD5E1">${hl}</td>
+          <td data-label="Tax Status"><span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span></td>
+          <td data-label="Type"><span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span></td>
           <td onclick="event.stopPropagation()">
             <div style="display:flex;gap:6px">
               <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
@@ -1062,9 +1090,10 @@ function openAddModal() {
   editId = null;
   document.getElementById("modalTitle").textContent = "Add Entry";
   ["f_name","f_amount","f_notes"].forEach(id => document.getElementById(id).value = "");
-  document.getElementById("f_date").value = fmtDate(today());
+  document.getElementById("f_date").value = today();
   document.getElementById("f_cat").value  = "MF";
   document.getElementById("f_type").value = "Monthly";
+  populateFundList();
   document.getElementById("formOverlay").classList.add("open");
 }
 
@@ -1077,7 +1106,8 @@ function openEditModal(id) {
   document.getElementById("f_cat").value    = inv.category;
   document.getElementById("f_type").value   = inv.frequency === "Monthly" ? "Monthly" : "Lumpsum";
   document.getElementById("f_amount").value = inv.investedAmount;
-  document.getElementById("f_date").value   = fmtDate(inv.purchaseDate);
+  document.getElementById("f_date").value   = inv.purchaseDate || today();
+  populateFundList();
   document.getElementById("f_notes").value  = inv.notes || "";
   document.getElementById("formOverlay").classList.add("open");
 }
@@ -1095,7 +1125,7 @@ function saveEntry() {
     name,
     category:       document.getElementById("f_cat").value,
     investedAmount: amount,
-    purchaseDate:   parseDisplayDate(document.getElementById("f_date").value),
+    purchaseDate:   document.getElementById("f_date").value || today(),
     frequency:      document.getElementById("f_type").value,
     sipAmount:      document.getElementById("f_type").value === "Monthly" ? amount : 0,
     notes:          document.getElementById("f_notes").value.trim(),
@@ -1230,6 +1260,22 @@ function exportExcel() {
     alert("Export failed: " + e.message);
     btn.textContent = "⬇ Export Excel";
     btn.disabled = false;
+  }
+}
+
+// ─── Fund name autocomplete ───────────────────────────────
+function populateFundList() {
+  const names = [...new Set(investments.map(i => i.name))].sort();
+  const dl = document.getElementById("fundNameList");
+  if (dl) dl.innerHTML = names.map(n => `<option value="${n}">`).join("");
+}
+
+function autoFillCategory() {
+  const name = document.getElementById("f_name").value.trim();
+  const match = investments.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (match) {
+    document.getElementById("f_cat").value  = match.category;
+    document.getElementById("f_type").value = match.frequency === "Monthly" ? "Monthly" : "Lumpsum";
   }
 }
 
