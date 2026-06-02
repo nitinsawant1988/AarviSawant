@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>₹ Tax Harvest Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:       #0B0F1A;
+    --bg2:      #131929;
+    --bg3:      #0F1624;
+    --border:   #1E2A42;
+    --text:     #E2E8F0;
+    --muted:    #64748B;
+    --subtle:   #475569;
+    --amber:    #F59E0B;
+    --green:    #10B981;
+    --pink:     #EC4899;
+    --indigo:   #6366F1;
+    --red:      #EF4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; font-size: 15px; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg2); } ::-webkit-scrollbar-thumb { background: #2D3A5A; border-radius: 3px; }
+
+  /* Layout */
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  header { padding: 28px 20px 0; }
+  .header-inner { max-width: 1120px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; }
+  .logo { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--amber); }
+  .subtitle { color: var(--muted); font-size: 13px; margin-top: 3px; display: flex; align-items: center; gap: 8px; }
+  .save-dot { font-size: 11px; color: var(--amber); animation: pulse 1s infinite; }
+  .save-ok  { font-size: 11px; color: var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Buttons */
+  .btn         { cursor: pointer; border: none; border-radius: 10px; font-family: inherit; font-weight: 600; font-size: 14px; transition: all .2s; padding: 10px 20px; }
+  .btn-amber   { background: var(--amber); color: var(--bg); }
+  .btn-amber:hover { background: #FCD34D; transform: translateY(-1px); }
+  .btn-ghost   { background: transparent; color: #94A3B8; border: 1px solid var(--border); font-size: 13px; padding: 8px 14px; cursor: pointer; border-radius: 10px; font-family: inherit; font-weight: 600; transition: all .2s; }
+  .btn-ghost:hover { border-color: var(--amber); color: var(--amber); }
+  .btn-danger  { background: transparent; color: var(--red); border: 1px solid #EF444430; font-size: 12px; padding: 5px 11px; cursor: pointer; border-radius: 8px; font-family: inherit; font-weight: 600; }
+  .btn-sm      { font-size: 12px; padding: 5px 11px; }
+
+  /* Cards */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; }
+
+  /* Summary grid */
+  .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin: 20px 0; }
+  .stat-card { padding: 18px 20px; border-left: 3px solid var(--border); transition: box-shadow .2s; }
+  .stat-card:hover { box-shadow: 0 0 0 1px #F59E0B33; }
+  .stat-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
+  .stat-sub   { font-size: 12px; color: var(--subtle); margin-top: 4px; }
+
+  /* Date bar */
+  .date-bar { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .date-bar label { font-size: 13px; color: #94A3B8; font-weight: 600; text-transform: none; letter-spacing: 0; display: inline; margin: 0; }
+  .date-bar input[type=date] { width: 180px; }
+  .date-tip { color: var(--subtle); font-size: 12px; margin-left: auto; }
+
+  /* Filters */
+  .filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .pill { cursor: pointer; border: 1px solid var(--border); border-radius: 50px; padding: 6px 16px; font-size: 13px; font-weight: 500; background: transparent; color: #94A3B8; font-family: inherit; transition: all .2s; }
+  .pill.active { border-color: var(--amber); color: var(--amber); background: #F59E0B18; }
+  .pill:hover  { border-color: #F59E0B44; color: #CBD5E1; }
+  #search { flex: 1; min-width: 160px; max-width: 220px; }
+
+  /* Inputs */
+  input, select, textarea {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-family: inherit; padding: 10px 14px; width: 100%;
+    font-size: 14px; outline: none; transition: border .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #F59E0B55; }
+  input[type=date]::-webkit-calendar-picker-indicator { filter: invert(.5); cursor: pointer; }
+  select option { background: var(--bg2); }
+  .field-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 6px; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th { padding: 13px 16px; text-align: left; font-size: 11px; color: var(--subtle); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--bg3); transition: background .12s; cursor: pointer; }
+  tbody tr:hover { background: #1A2035; }
+  td { padding: 14px 16px; vertical-align: middle; }
+  tr.expanded-row { background: var(--bg3); border-bottom: 1px solid var(--border); cursor: default; }
+  tr.expanded-row:hover { background: var(--bg3); }
+
+  /* Tags */
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .status-tag { padding: 5px 12px; font-size: 12px; border-radius: 8px; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; background: #00000099; z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; padding: 28px; animation: slideIn .25s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .span2 { grid-column: 1/-1; }
+  .form-tip { margin-top: 14px; padding: 10px 14px; background: #F59E0B0D; border: 1px solid #F59E0B22; border-radius: 10px; font-size: 12px; color: #94A3B8; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  /* Notice & tips */
+  .notice { padding: 10px 16px; border-radius: 10px; font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .notice-green { background: #10B98108; border: 1px solid #10B98122; color: var(--muted); }
+  .tip-box { margin-top: 14px; padding: 14px 18px; background: #10B98110; border: 1px solid #10B98133; border-radius: 12px; font-size: 13px; color: #94A3B8; line-height: 1.7; }
+
+  /* Legend */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 10px; margin-top: 16px; }
+  .legend-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .legend-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .legend-desc  { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+  /* History panel */
+  .history-toggle { font-size: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; margin-top: 6px; display: inline-block; }
+  .history-list { display: none; margin-top: 8px; }
+  .history-list.open { display: block; }
+  .history-item { font-size: 11px; color: var(--subtle); padding: 3px 0; border-bottom: 1px solid var(--bg3); }
+
+
+
+  /* Responsive */
+  @media(max-width: 700px) {
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .span2 { grid-column: 1; }
+    .date-tip { display: none; }
+    .hdr-btns { flex-direction: column; }
+    table { font-size: 12px; }
+  }
+  @media(max-width: 420px) {
+    .summary-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <div class="logo"><span>₹</span> Tax Harvest Tracker</div>
+      <div class="subtitle">
+        LTCG / STCG eligibility · Local storage · Long-term use
+        <span class="save-dot" id="saveDot" style="display:none">● saving…</span>
+        <span class="save-ok"  id="saveOk"  style="display:none">✓ saved</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap" class="hdr-btns">
+      <button class="btn btn-ghost" onclick="exportExcel()" id="exportBtn">⬇ Export Excel</button>
+      <button class="btn btn-amber" onclick="openAddModal()">+ Add Entry</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap" style="padding-top:20px;padding-bottom:48px">
+
+
+
+  <!-- Storage notice -->
+  <div class="notice notice-green">
+    <span style="color:var(--green);font-size:14px">💾</span>
+    <span>Data saved to <strong style="color:var(--green)">localStorage</strong> on your device — persists across sessions. Use monthly to log new entries.</span>
+  </div>
+
+  <!-- Date bar -->
+  <div class="date-bar">
+    <label>📅 Check eligibility as on:</label>
+    <input type="text" id="checkDate" placeholder="DD/MM/YYYY" maxlength="10" oninput="autoSlashDate(this);render()" style="width:150px"/>
+    <button class="btn-ghost btn-sm" onclick="setToday()">Today</button>
+    <span class="date-tip">💡 Set a future date to see when STCG flips to LTCG</span>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="pill active" data-cat="ALL" onclick="setFilter('ALL',this)">All</button>
+    <button class="pill" data-cat="MF"     onclick="setFilter('MF',this)">📈 Mutual Funds</button>
+    <button class="pill" data-cat="SSY"    onclick="setFilter('SSY',this)">🌸 SSY</button>
+    <button class="pill" data-cat="STOCKS" onclick="setFilter('STOCKS',this)">📊 Stocks</button>
+    <button class="pill" data-cat="PPF"    onclick="setFilter('PPF',this)">🏛️ PPF</button>
+    <button class="pill" data-cat="FD"     onclick="setFilter('FD',this)">🏦 FD/Bonds</button>
+    <input type="text" id="search" placeholder="🔍 Search..." oninput="render()" style="flex:1;min-width:140px;max-width:220px;padding:7px 14px;font-size:13px"/>
+  </div>
+
+  <!-- Table -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:12px;color:#475569" id="tableCount"></div>
+    <div style="display:flex;gap:4px;background:#0F1624;border:1px solid #1E2A42;border-radius:8px;padding:3px">
+      <button id="btnTranche" onclick="setViewMode('tranche')"
+        style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;background:#F59E0B;color:#0B0F1A;transition:all .2s">
+        ☰ Tranche
+      </button>
+      <button id="btnFund" onclick="setViewMode('fund')"
+        style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:#64748B;transition:all .2s">
+        ⊞ Fund
+      </button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card table-wrap">
+    <table>
+      <thead id="tableHead">
+        <tr>
+          <th>Investment</th><th>Category</th><th>Invested</th>
+          <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
+          <th>Type</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend" id="legend"></div>
+
+  <!-- Tip -->
+  <div class="tip-box">
+    💡 <strong style="color:var(--green)">Tax Harvesting 101:</strong>
+    Click any row for the full tax note. Use the date picker to simulate a future date and see when STCG flips to LTCG.
+    For equity, LTCG up to <strong style="color:var(--text)">₹1.25L/year is tax-free</strong> — harvesting within this limit each year is a powerful strategy.
+    Always verify with a CA before acting.
+  </div>
+
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="overlay" id="formOverlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="modal-title" id="modalTitle">Add Entry</div>
+      <button class="btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="span2">
+        <label class="field-label">Investment Name *</label>
+        <input id="f_name" placeholder="e.g. Parag Parikh Flexi Cap — SIP Apr 2025"/>
+      </div>
+      <div>
+        <label class="field-label">Category *</label>
+        <select id="f_cat">
+          <option value="MF">📈 Mutual Funds / SIP</option>
+          <option value="SSY">🌸 Sukanya Samriddhi</option>
+          <option value="STOCKS">📊 Stocks / ETFs</option>
+          <option value="PPF">🏛️ PPF / Bonds (EEE)</option>
+          <option value="FD">🏦 FD / Bonds (Slab Tax)</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Type</label>
+        <select id="f_type">
+          <option value="Monthly">Monthly SIP</option>
+          <option value="Lumpsum">Lumpsum</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Amount (₹) *</label>
+        <input id="f_amount" placeholder="e.g. 6000" type="number"/>
+      </div>
+      <div>
+        <label class="field-label">Date (DD/MM/YYYY)</label>
+        <input type="text" id="f_date" placeholder="DD/MM/YYYY" maxlength="10" oninput="autoSlashDate(this)"/>
+      </div>
+      <div class="span2">
+        <label class="field-label">Notes</label>
+        <textarea id="f_notes" rows="2" placeholder="e.g. SIP Apr 2025, step-up, reason for lumpsum..."></textarea>
+      </div>
+    </div>
+    <div class="form-tip">
+      💡 Each entry = one tranche with its own purchase date and LTCG clock. Log each SIP month separately for precise tracking.
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-amber" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIP Commitments Panel -->
+<div class="overlay" id="sipPanelOverlay" onclick="if(event.target===this)closeSipPanel()">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div class="modal-title">📅 Monthly SIP Commitments</div>
+      <button class="btn-ghost btn-sm" onclick="closeSipPanel()">✕</button>
+    </div>
+    <div style="font-size:12px;color:#64748B;margin-bottom:16px;line-height:1.6">
+      Your committed monthly SIPs for reference. These don't affect investment entries — log each actual payment manually via <strong style="color:#F59E0B">+ Add Entry</strong>.
+    </div>
+
+    <div id="sipPanelList"></div>
+
+    <div id="sipPanelTotal" style="margin:14px 0 18px;padding:12px 16px;background:#EC489910;border:1px solid #EC489933;border-radius:10px;display:flex;justify-content:space-between;align-items:center"></div>
+
+    <!-- Add new SIP commitment form -->
+    <div style="border-top:1px solid var(--border);padding-top:16px">
+      <div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">➕ Add Commitment</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="grid-column:1/-1">
+          <label class="field-label">Fund / Investment Name *</label>
+          <input id="sc_name" placeholder="e.g. Parag Parikh Flexi Cap"/>
+        </div>
+        <div>
+          <label class="field-label">Monthly Amount (₹) *</label>
+          <input id="sc_amount" type="number" placeholder="e.g. 6000"/>
+        </div>
+        <div>
+          <label class="field-label">Category</label>
+          <select id="sc_cat">
+            <option value="MF">📈 Mutual Funds</option>
+            <option value="STOCKS">📊 Stocks / ETFs</option>
+            <option value="SSY">🌸 SSY</option>
+            <option value="PPF">🏛️ PPF</option>
+            <option value="FD">🏦 FD / Bonds</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1">
+          <label class="field-label">Notes</label>
+          <input id="sc_notes" placeholder="e.g. Step-up from Apr 2025"/>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button class="btn btn-amber" onclick="addSipCommitment()">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit SIP Commitment Modal -->
+<div class="overlay" id="sipEditOverlay" onclick="if(event.target===this)closeSipEdit()">
+  <div class="modal" style="max-width:360px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title">Edit Commitment</div>
+      <button class="btn-ghost btn-sm" onclick="closeSipEdit()">✕</button>
+    </div>
+    <div id="sipEditFundName" style="font-size:13px;color:#64748B;margin-bottom:14px"></div>
+    <label class="field-label">Monthly Amount (₹)</label>
+    <input id="sipEditAmt" type="number" style="margin-bottom:10px"/>
+    <label class="field-label">Notes</label>
+    <input id="sipEditNotes" placeholder="Optional" style="margin-bottom:16px"/>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="closeSipEdit()">Cancel</button>
+      <button class="btn btn-amber" onclick="saveSipEdit()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="overlay" id="delOverlay">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title" style="margin-bottom:10px">Remove Investment?</div>
+    <div style="color:#94A3B8;font-size:14px;margin-bottom:20px">
+      Delete <strong id="delName" style="color:var(--text)"></strong>?
+      This cannot be undone.
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeDelModal()">Cancel</button>
+      <button class="btn btn-amber" style="background:var(--red);color:#fff" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────
+const STORAGE_KEY = "taxHarvestTracker_v1";
+const SIP_KEY     = "taxHarvestTracker_sips_v1";
+
+const CATEGORIES = {
+  MF:     { label: "Mutual Funds / SIP", color: "#F59E0B", icon: "📈" },
+  SSY:    { label: "Sukanya Samriddhi",  color: "#EC4899", icon: "🌸" },
+  STOCKS: { label: "Stocks / ETFs",      color: "#10B981", icon: "📊" },
+  PPF:    { label: "PPF / Bonds",        color: "#8B5CF6", icon: "🏛️" },
+  FD:     { label: "FD / Bonds",         color: "#6366F1", icon: "🏦" },
+};
+
+const TAX_RULES = {
+  MF:     { ltcgMonths: 12,  ltcgRate: 12.5, stcgRate: 20,   exempt: false, noLTCG: false, note: "Equity MF: LTCG >₹1.25L taxed @12.5%" },
+  STOCKS: { ltcgMonths: 12,  ltcgRate: 12.5, stcgRate: 20,   exempt: false, noLTCG: false, note: "Listed equity: LTCG >₹1.25L @12.5%, STCG @20%" },
+  PPF:    { ltcgMonths: null, ltcgRate: 0,    stcgRate: 0,    exempt: true,  noLTCG: false, note: "PPF is fully tax-exempt (EEE status) — contributions, interest & maturity all tax-free" },
+  FD:     { ltcgMonths: null, ltcgRate: null, stcgRate: null, exempt: false, noLTCG: true,  note: "FD/Bonds: interest taxed at your income slab rate — not eligible for LTCG" },
+  SSY:    { ltcgMonths: null, ltcgRate: 0,    stcgRate: 0,    exempt: true,  noLTCG: false, note: "SSY is fully tax-exempt (EEE status)" },
+};
+
+const SAMPLE_DATA = [
+  { id:1, name:"Parag Parikh Flexi Cap Fund", category:"MF",     investedAmount:72000,  purchaseDate:"2023-06-01", sipAmount:6000,  frequency:"Monthly",  notes:"Core equity holding" },
+  { id:2, name:"Axis Small Cap Fund",         category:"MF",     investedAmount:48000,  purchaseDate:"2024-11-15", sipAmount:4000,  frequency:"Monthly",  notes:"High risk, high reward" },
+  { id:3, name:"SSY – Daughter (2026)",       category:"SSY",    investedAmount:40000,  purchaseDate:"2026-01-15", sipAmount:40000, frequency:"Yearly",   notes:"Education & marriage corpus" },
+  { id:4, name:"Infosys Ltd",                 category:"STOCKS", investedAmount:50000,  purchaseDate:"2022-11-10", sipAmount:0,     frequency:"One-time", notes:"Long-term hold" },
+  { id:5, name:"Nifty 50 Index ETF",          category:"STOCKS", investedAmount:30000,  purchaseDate:"2025-02-01", sipAmount:2000,  frequency:"Monthly",  notes:"Passive core" },
+  { id:6, name:"PPF Account",                 category:"PPF",    investedAmount:100000, purchaseDate:"2021-04-01", sipAmount:12500, frequency:"Monthly",  notes:"Tax-free under 80C" },
+  { id:7, name:"SBI Fixed Deposit",           category:"FD",     investedAmount:200000, purchaseDate:"2024-01-01", sipAmount:0,     frequency:"One-time", notes:"1-year FD @ 7.1%" },
+];
+
+// ─── State ───────────────────────────────────────────────
+let investments     = [];
+let sipCommitments  = []; // separate from investment entries
+let editId          = null;
+let deleteId        = null;
+let activeFilter    = "ALL";
+let activeTaxFilter = "ALL";
+let expandedId      = null;
+let expandedFund    = null; // for fund view
+let viewMode        = "tranche"; // "tranche" | "fund"
+let saveTimer       = null;
+
+// ─── Storage ─────────────────────────────────────────────
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch(e) {}
+  return null;
+}
+
+function loadSips() {
+  try {
+    const raw = localStorage.getItem(SIP_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return [];
+}
+
+function save() {
+  clearTimeout(saveTimer);
+  showSaveDot(true);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(investments)); } catch(e) {}
+    showSaveDot(false);
+  }, 600);
+}
+
+function saveSips() {
+  try { localStorage.setItem(SIP_KEY, JSON.stringify(sipCommitments)); } catch(e) {}
+}
+
+function showSaveDot(saving) {
+  document.getElementById("saveDot").style.display = saving ? "inline" : "none";
+  document.getElementById("saveOk").style.display  = saving ? "none"   : "inline";
+  if (!saving) setTimeout(() => { document.getElementById("saveOk").style.display = "none"; }, 2000);
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+const today = () => new Date().toISOString().split("T")[0];
+
+// Format stored YYYY-MM-DD → DD/MM/YYYY for display
+function fmtDate(dateStr) {
+  if (!dateStr || dateStr === "—") return "—";
+  const [y, m, d] = dateStr.split("-");
+  if (!y || !m || !d) return dateStr;
+  return `${d}/${m}/${y}`;
+}
+
+function monthsDiff(dateStr, checkDate) {
+  const f = new Date(dateStr), t = new Date(checkDate);
+  return (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth());
+}
+function daysDiff(dateStr, checkDate) {
+  return Math.floor((new Date(checkDate) - new Date(dateStr)) / 86400000);
+}
+
+function formatINR(v) {
+  v = Number(v);
+  if (v >= 1e7) return `₹${(v/1e7).toFixed(2)}Cr`;
+  if (v >= 1e5) return `₹${(v/1e5).toFixed(2)}L`;
+  return `₹${v.toLocaleString("en-IN")}`;
+}
+
+function getStatus(inv, checkDate) {
+  const rule = TAX_RULES[inv.category];
+  if (rule.exempt)  return { label:"Exempt",   color:"#EC4899", badge:"EEE", detail: rule.note };
+  if (rule.noLTCG)  return { label:"Slab Tax",  color:"#6366F1", badge:"Slab Rate", isSlabTax:true,
+    detail: rule.note };
+  if (!inv.purchaseDate) return { label:"No date", color:"#475569", badge:"—", detail:"Add purchase date to check eligibility" };
+  const months = monthsDiff(inv.purchaseDate, checkDate);
+  const days   = daysDiff(inv.purchaseDate, checkDate);
+  if (days < 0) return { label:"Future date", color:"#EF4444", badge:"!", detail:"Purchase date is in the future" };
+  if (months >= rule.ltcgMonths) {
+    return { label:"LTCG Eligible", color:"#10B981", badge:"LTCG ✓", isLTCG:true,
+      detail:`Held ${months}m — qualifies for LTCG @${rule.ltcgRate}%. ${rule.note}` };
+  }
+  const rem = rule.ltcgMonths - months;
+  return { label:"STCG", color:"#F59E0B", badge:`STCG · ${rem}m left`, isSTCG:true,
+    detail:`Need ${rem} more month${rem!==1?"s":""} for LTCG. STCG @${rule.stcgRate}%. ${rule.note}` };
+}
+
+function holdingLabel(inv, checkDate) {
+  if (!inv.purchaseDate) return "—";
+  const m = monthsDiff(inv.purchaseDate, checkDate);
+  if (m < 0) return "—";
+  return m >= 12 ? `${Math.floor(m/12)}y ${m%12}m` : `${m}m`;
+}
+
+// ─── Render ───────────────────────────────────────────────
+function parseDisplayDate(str) {
+  // Accepts DD/MM/YYYY → YYYY-MM-DD
+  if (!str) return today();
+  const parts = str.split("/");
+  if (parts.length === 3 && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+  return str; // fallback (already YYYY-MM-DD)
+}
+function getCheckDate() {
+  const v = document.getElementById("checkDate").value;
+  return parseDisplayDate(v) || today();
+}
+
+function render() {
+  const cd     = getCheckDate();
+  const search = document.getElementById("search").value.toLowerCase();
+
+  // Summary
+  const allS    = investments.map(i => getStatus(i, cd));
+  const totInv  = investments.reduce((s,i) => s + i.investedAmount, 0);
+  const ltcgN   = allS.filter(s => s.isLTCG).length;
+  const stcgN   = allS.filter(s => s.isSTCG).length;
+  const sipMo   = investments.filter(i => i.frequency==="Monthly").reduce((s,i) => s + (i.sipAmount||0), 0);
+
+  const ltcgItems   = investments.filter((inv,i) => allS[i].isLTCG);
+  const ltcgAmt     = ltcgItems.reduce((s,i) => s + i.investedAmount, 0);
+  const stcgItems   = investments.filter((inv,i) => allS[i].isSTCG);
+  const stcgAmt     = stcgItems.reduce((s,i) => s + i.investedAmount, 0);
+
+  const sipTotal  = sipCommitments.filter(s => s.active).reduce((t,s) => t + s.amount, 0);
+  const sipCount  = sipCommitments.filter(s => s.active).length;
+
+  document.getElementById("summaryGrid").innerHTML = [
+    { label:"Total Invested",  value: formatINR(totInv),                          sub:`${investments.length} holdings`,                                          accent:"#6366F1", onclick:"",                    cursor:"default" },
+    { label:"LTCG Eligible",   value: ltcgN > 0 ? formatINR(ltcgAmt) : "—",      sub:`${ltcgN} holding${ltcgN!==1?"s":""} · click to filter`,                  accent:"#10B981", onclick:"setTaxFilter('LTCG')", cursor:"pointer"  },
+    { label:"STCG (wait)",     value: stcgN > 0 ? formatINR(stcgAmt) : "—",      sub:`${stcgN} holding${stcgN!==1?"s":""} · click to filter`,                  accent:"#F59E0B", onclick:"setTaxFilter('STCG')", cursor:"pointer"  },
+    { label:"Monthly SIP",     value: formatINR(sipTotal),                        sub:`${sipCount} active commitment${sipCount!==1?"s":""} · click to manage`,  accent:"#EC4899", onclick:"openSipPanel()",       cursor:"pointer"  },
+  ].map(s => {
+    const isActive = (s.onclick.includes("LTCG") && activeTaxFilter === "LTCG") ||
+                     (s.onclick.includes("STCG") && activeTaxFilter === "STCG");
+    return `
+    <div class="card stat-card" style="border-left-color:${s.accent};cursor:${s.cursor};${isActive ? `box-shadow:0 0 0 2px ${s.accent}55;` : ""}"
+      onclick="${s.onclick}">
+      <div class="stat-label">${s.label}${isActive ? ` <span style="font-size:10px;color:${s.accent}">● ON</span>` : ""}</div>
+      <div class="stat-value" style="color:${s.accent}">${s.value}</div>
+      <div class="stat-sub">${s.sub}</div>
+    </div>`;
+  }).join("");
+
+  // Table
+  const filtered = investments.filter(inv => {
+    const matchCat  = activeFilter === "ALL" || inv.category === activeFilter;
+    const matchSrch = !search ||
+      inv.name.toLowerCase().includes(search) ||
+      (inv.notes || "").toLowerCase().includes(search) ||
+      CATEGORIES[inv.category].label.toLowerCase().includes(search);
+    const status    = getStatus(inv, cd);
+    const matchTax  = activeTaxFilter === "ALL" ||
+      (activeTaxFilter === "LTCG" && status.isLTCG) ||
+      (activeTaxFilter === "STCG" && status.isSTCG);
+    return matchCat && matchSrch && matchTax;
+  });
+
+  const tbody = document.getElementById("tableBody");
+
+  // Update toggle button styles
+  document.getElementById("btnTranche").style.background = viewMode === "tranche" ? "#F59E0B" : "transparent";
+  document.getElementById("btnTranche").style.color      = viewMode === "tranche" ? "#0B0F1A" : "#64748B";
+  document.getElementById("btnFund").style.background    = viewMode === "fund"    ? "#F59E0B" : "transparent";
+  document.getElementById("btnFund").style.color         = viewMode === "fund"    ? "#0B0F1A" : "#64748B";
+
+  if (filtered.length === 0) {
+    document.getElementById("tableCount").textContent = "No entries found";
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Investment</th><th>Category</th><th>Invested</th>
+      <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
+      <th>Type</th><th>Actions</th></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:40px;text-align:center;color:#475569">No investments found</td></tr>`;
+
+  } else if (viewMode === "tranche") {
+    // ── TRANCHE VIEW (existing behaviour) ──
+    document.getElementById("tableCount").textContent = `${filtered.length} entr${filtered.length !== 1 ? "ies" : "y"}`;
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Investment</th><th>Category</th><th>Invested</th>
+      <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
+      <th>Type</th><th>Actions</th></tr>`;
+
+    tbody.innerHTML = filtered.map(inv => {
+      const cat    = CATEGORIES[inv.category];
+      const status = getStatus(inv, cd);
+      const hl     = holdingLabel(inv, cd);
+      const isExp  = expandedId === inv.id;
+
+      const dataRow = `
+        <tr onclick="toggleExpand(${inv.id})" data-id="${inv.id}" style="border-bottom:1px solid #0F1624;transition:background .12s" class="row-hover">
+          <td>
+            <div style="font-weight:600;font-size:14px;color:#E2E8F0">${inv.name}</div>
+            ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
+          </td>
+          <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
+          <td style="font-weight:600;font-size:14px">${formatINR(inv.investedAmount)}</td>
+          <td style="font-size:13px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
+          <td style="font-size:13px;color:#CBD5E1">${hl}</td>
+          <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span></td>
+          <td><span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span></td>
+          <td onclick="event.stopPropagation()">
+            <div style="display:flex;gap:6px">
+              <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
+              <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
+            </div>
+          </td>
+        </tr>`;
+
+      const expandRow = isExp ? `
+        <tr class="expanded-row">
+          <td colspan="8" style="padding:12px 20px 14px 28px">
+            <span style="color:${status.color};font-weight:700">ℹ️ Tax note: </span>
+            <span style="font-size:13px;color:#94A3B8;line-height:1.7">${status.detail}</span>
+          </td>
+        </tr>` : "";
+
+      return dataRow + expandRow;
+    }).join("");
+
+  } else {
+    // ── FUND VIEW (grouped by name) ──
+    // Group filtered entries by fund name
+    const groups = {};
+    filtered.forEach(inv => {
+      const key = inv.name.trim().toLowerCase();
+      if (!groups[key]) groups[key] = { name: inv.name, category: inv.category, entries: [] };
+      groups[key].entries.push(inv);
+    });
+
+    const groupArr = Object.values(groups);
+    document.getElementById("tableCount").textContent = `${groupArr.length} fund${groupArr.length !== 1 ? "s" : ""} · ${filtered.length} tranches`;
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Fund Name</th><th>Category</th><th>Total Invested</th>
+      <th>Earliest Date</th><th>Tranches</th><th>LTCG / STCG</th>
+      <th>Type</th><th></th></tr>`;
+
+    tbody.innerHTML = groupArr.map(g => {
+      const cat        = CATEGORIES[g.category] || CATEGORIES["MF"];
+      const totalAmt   = g.entries.reduce((s,i) => s + i.investedAmount, 0);
+      const earliest   = g.entries.reduce((min,i) => (!min || i.purchaseDate < min) ? i.purchaseDate : min, null);
+      const statuses   = g.entries.map(i => getStatus(i, cd));
+      const ltcgC      = statuses.filter(s => s.isLTCG).length;
+      const stcgC      = statuses.filter(s => s.isSTCG).length;
+      const hasMonthly = g.entries.some(i => i.frequency === "Monthly");
+      const isExp      = expandedFund === g.name.trim().toLowerCase();
+
+      // Summary status badge
+      const summaryBadge = ltcgC > 0 && stcgC === 0
+        ? `<span class="tag status-tag" style="background:#10B98122;color:#10B981">All LTCG ✓</span>`
+        : ltcgC === 0 && stcgC > 0
+        ? `<span class="tag status-tag" style="background:#F59E0B22;color:#F59E0B">All STCG</span>`
+        : ltcgC > 0 && stcgC > 0
+        ? `<span class="tag status-tag" style="background:#6366F122;color:#6366F1">${ltcgC} LTCG · ${stcgC} STCG</span>`
+        : `<span class="tag status-tag" style="background:#47556922;color:#475569">—</span>`;
+
+      const fundRow = `
+        <tr onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')" style="border-bottom:1px solid #0F1624;cursor:pointer;transition:background .12s" class="row-hover">
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
+              <div>
+                <div style="font-weight:700;font-size:14px;color:#E2E8F0">${g.name}</div>
+                <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
+          <td style="font-weight:700;font-size:14px;color:#F59E0B">${formatINR(totalAmt)}</td>
+          <td style="font-size:13px;color:#94A3B8">${fmtDate(earliest)}</td>
+          <td style="font-size:13px;color:#CBD5E1">${g.entries.length}</td>
+          <td>${summaryBadge}</td>
+          <td><span style="font-size:12px;color:${hasMonthly?"#10B981":"#64748B"}">${hasMonthly ? "SIP" : "Lumpsum"}</span></td>
+          <td></td>
+        </tr>`;
+
+      const expandRows = isExp ? g.entries.map(inv => {
+        const status = getStatus(inv, cd);
+        const hl     = holdingLabel(inv, cd);
+        return `
+          <tr style="background:#0D1220;border-bottom:1px solid #0F1624">
+            <td style="padding:10px 16px 10px 40px">
+              <div style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</div>
+              ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
+            </td>
+            <td></td>
+            <td style="font-size:13px;font-weight:600;color:#CBD5E1">${formatINR(inv.investedAmount)}</td>
+            <td style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
+            <td style="font-size:12px;color:#94A3B8">${hl}</td>
+            <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color};font-size:11px">${status.badge}</span></td>
+            <td><span style="font-size:11px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly" : "Lumpsum"}</span></td>
+            <td onclick="event.stopPropagation()">
+              <div style="display:flex;gap:5px">
+                <button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 9px" onclick="openEditModal(${inv.id})">Edit</button>
+                <button class="btn-danger" style="font-size:11px;padding:4px 9px" onclick="openDelModal(${inv.id})">Del</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("") : "";
+
+      return fundRow + expandRows;
+    }).join("");
+  }
+
+  // Legend
+  document.getElementById("legend").innerHTML = Object.entries(TAX_RULES).map(([cat, rule]) => `
+    <div class="legend-card">
+      <div class="legend-title" style="color:${CATEGORIES[cat].color}">${CATEGORIES[cat].icon} ${CATEGORIES[cat].label}</div>
+      <div class="legend-desc">${rule.exempt
+        ? "🟢 Fully exempt (EEE status)"
+        : rule.noLTCG
+        ? "🔵 Taxed at income slab rate — not LTCG eligible"
+        : `LTCG after ${rule.ltcgMonths}m @${rule.ltcgRate}% · STCG @${rule.stcgRate}%`}</div>
+    </div>`).join("");
+}
+
+// ─── Filter & expand ─────────────────────────────────────
+function setFilter(cat, el) {
+  activeFilter = cat;
+  document.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
+  el.classList.add("active");
+  render();
+}
+
+function setTaxFilter(tax) {
+  activeTaxFilter = activeTaxFilter === tax ? "ALL" : tax;
+  render();
+}
+
+// ─── SIP Commitments Panel ────────────────────────────────
+let sipEditCommitId = null;
+
+function openSipPanel() {
+  renderSipPanel();
+  document.getElementById("sipPanelOverlay").classList.add("open");
+}
+function closeSipPanel() {
+  document.getElementById("sipPanelOverlay").classList.remove("open");
+}
+
+function renderSipPanel() {
+  const active  = sipCommitments.filter(s => s.active);
+  const stopped = sipCommitments.filter(s => !s.active);
+  const total   = active.reduce((t,s) => t + s.amount, 0);
+
+  // Month tracker — current month vs logged entries
+  const now        = new Date();
+  const thisYear   = now.getFullYear();
+  const thisMonth  = now.getMonth();
+  const monthName  = now.toLocaleString("default", { month:"long", year:"numeric" });
+  const loggedThisMonth = investments
+    .filter(i => {
+      if (!i.purchaseDate) return false;
+      const d = new Date(i.purchaseDate);
+      return d.getFullYear() === thisYear && d.getMonth() === thisMonth && i.frequency === "Monthly";
+    })
+    .reduce((s,i) => s + i.investedAmount, 0);
+  const pct        = total > 0 ? Math.min(100, Math.round((loggedThisMonth / total) * 100)) : 0;
+  const gap        = total - loggedThisMonth;
+  const statusCol  = pct >= 100 ? "#10B981" : pct >= 50 ? "#F59E0B" : "#EF4444";
+  const statusMsg  = pct >= 100 ? "✅ Fully invested this month!" : pct > 0 ? `⏳ ${formatINR(gap)} remaining` : "❌ Nothing logged yet";
+
+  const monthTrackerHTML = `
+    <div style="margin-bottom:18px;padding:14px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.5px">📊 ${monthName}</div>
+        <div style="font-size:12px;font-weight:700;color:${statusCol}">${statusMsg}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748B;margin-bottom:8px">
+        <span>Committed: <strong style="color:#E2E8F0">${formatINR(total)}</strong></span>
+        <span>Logged: <strong style="color:${statusCol}">${formatINR(loggedThisMonth)}</strong></span>
+      </div>
+      <div style="background:#1E2A42;border-radius:100px;height:7px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${statusCol};border-radius:100px;transition:width .4s ease"></div>
+      </div>
+      <div style="font-size:11px;color:#475569;margin-top:6px">${pct}% of monthly commitment logged</div>
+    </div>`;
+
+  const catIcon  = c => (CATEGORIES[c] || CATEGORIES["MF"]).icon;
+
+  const activeHTML = active.length > 0 ? active.map(s => `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg3);border-radius:10px;margin-bottom:6px">
+      <span style="font-size:16px">${catIcon(s.cat)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#E2E8F0">${s.name}</div>
+        ${s.notes ? `<div style="font-size:11px;color:#475569;margin-top:1px">${s.notes}</div>` : ""}
+      </div>
+      <div style="font-size:14px;font-weight:700;color:#10B981;white-space:nowrap">${formatINR(s.amount)}/mo</div>
+      <button onclick="openSipEdit('${s.id}')"
+        style="background:#F59E0B18;border:1px solid #F59E0B33;color:#F59E0B;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">✏️</button>
+      <button onclick="stopSipCommit('${s.id}')"
+        style="background:#EF444415;border:1px solid #EF444430;color:#EF4444;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">⏹</button>
+    </div>`).join("") : `<div style="color:#475569;font-size:13px;padding:6px 0 12px">No active commitments yet. Add one below.</div>`;
+
+  const stoppedHTML = stopped.length > 0 ? `
+    <div style="margin-top:10px">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⏹ Stopped</div>
+      ${stopped.map(s => `
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg3);border-radius:10px;margin-bottom:5px;opacity:.55">
+          <span style="font-size:15px">${catIcon(s.cat)}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:#94A3B8">${s.name}</div>
+            <div style="font-size:11px;color:#475569">Was ${formatINR(s.amount)}/mo</div>
+          </div>
+          <button onclick="resumeSipCommit('${s.id}')"
+            style="background:#10B98115;border:1px solid #10B98130;color:#10B981;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">▶</button>
+          <button onclick="deleteSipCommit('${s.id}')"
+            style="background:#EF444415;border:1px solid #EF444430;color:#EF4444;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🗑</button>
+        </div>`).join("")}
+    </div>` : "";
+
+  document.getElementById("sipPanelList").innerHTML = monthTrackerHTML + activeHTML + stoppedHTML;
+  document.getElementById("sipPanelTotal").innerHTML = `
+    <span style="font-size:13px;font-weight:600;color:#94A3B8">Total Monthly Commitment</span>
+    <span style="font-size:20px;font-weight:800;color:#EC4899;font-family:'Syne',sans-serif">${formatINR(total)}</span>`;
+}
+
+function addSipCommitment() {
+  const name   = document.getElementById("sc_name").value.trim();
+  const amount = parseFloat(document.getElementById("sc_amount").value) || 0;
+  if (!name || !amount) { alert("Name and amount are required."); return; }
+  sipCommitments.push({
+    id:     "sip_" + Date.now(),
+    name,
+    amount,
+    cat:    document.getElementById("sc_cat").value,
+    notes:  document.getElementById("sc_notes").value.trim(),
+    active: true,
+  });
+  saveSips(); render(); renderSipPanel();
+  ["sc_name","sc_amount","sc_notes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("sc_cat").value = "MF";
+}
+
+function stopSipCommit(id) {
+  sipCommitments = sipCommitments.map(s => s.id === id ? {...s, active:false} : s);
+  saveSips(); render(); renderSipPanel();
+}
+function resumeSipCommit(id) {
+  sipCommitments = sipCommitments.map(s => s.id === id ? {...s, active:true} : s);
+  saveSips(); render(); renderSipPanel();
+}
+function deleteSipCommit(id) {
+  sipCommitments = sipCommitments.filter(s => s.id !== id);
+  saveSips(); render(); renderSipPanel();
+}
+
+function openSipEdit(id) {
+  const s = sipCommitments.find(c => c.id === id);
+  if (!s) return;
+  sipEditCommitId = id;
+  document.getElementById("sipEditFundName").textContent = s.name;
+  document.getElementById("sipEditAmt").value            = s.amount;
+  document.getElementById("sipEditNotes").value          = s.notes || "";
+  document.getElementById("sipEditOverlay").classList.add("open");
+}
+function closeSipEdit() {
+  document.getElementById("sipEditOverlay").classList.remove("open");
+  sipEditCommitId = null;
+}
+function saveSipEdit() {
+  const amt = parseFloat(document.getElementById("sipEditAmt").value) || 0;
+  if (!amt) { alert("Please enter a valid amount."); return; }
+  sipCommitments = sipCommitments.map(s => s.id === sipEditCommitId
+    ? {...s, amount: amt, notes: document.getElementById("sipEditNotes").value.trim()} : s);
+  saveSips(); render(); renderSipPanel(); closeSipEdit();
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  expandedId   = null;
+  expandedFund = null;
+  render();
+}
+
+function toggleExpand(id) {
+  expandedId = expandedId === id ? null : id;
+  render();
+}
+
+function toggleExpandFund(key) {
+  expandedFund = expandedFund === key ? null : key;
+  render();
+}
+
+function setToday() {
+  document.getElementById("checkDate").value = fmtDate(today());
+  render();
+}
+
+// ─── Add / Edit ───────────────────────────────────────────
+function openAddModal() {
+  editId = null;
+  document.getElementById("modalTitle").textContent = "Add Entry";
+  ["f_name","f_amount","f_notes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("f_date").value = fmtDate(today());
+  document.getElementById("f_cat").value  = "MF";
+  document.getElementById("f_type").value = "Monthly";
+  document.getElementById("formOverlay").classList.add("open");
+}
+
+function openEditModal(id) {
+  const inv = investments.find(i => i.id === id);
+  if (!inv) return;
+  editId = id;
+  document.getElementById("modalTitle").textContent = "Edit Entry";
+  document.getElementById("f_name").value   = inv.name;
+  document.getElementById("f_cat").value    = inv.category;
+  document.getElementById("f_type").value   = inv.frequency === "Monthly" ? "Monthly" : "Lumpsum";
+  document.getElementById("f_amount").value = inv.investedAmount;
+  document.getElementById("f_date").value   = fmtDate(inv.purchaseDate);
+  document.getElementById("f_notes").value  = inv.notes || "";
+  document.getElementById("formOverlay").classList.add("open");
+}
+
+function closeModal() { document.getElementById("formOverlay").classList.remove("open"); }
+function overlayClick(e) { if (e.target === e.currentTarget) closeModal(); }
+
+function saveEntry() {
+  const name   = document.getElementById("f_name").value.trim();
+  const amount = parseFloat(document.getElementById("f_amount").value) || 0;
+  if (!name || !amount) { alert("Name and Amount are required."); return; }
+
+  const entry = {
+    id:             editId || Date.now(),
+    name,
+    category:       document.getElementById("f_cat").value,
+    investedAmount: amount,
+    purchaseDate:   parseDisplayDate(document.getElementById("f_date").value),
+    frequency:      document.getElementById("f_type").value,
+    sipAmount:      document.getElementById("f_type").value === "Monthly" ? amount : 0,
+    notes:          document.getElementById("f_notes").value.trim(),
+  };
+
+  investments = editId
+    ? investments.map(i => i.id === editId ? entry : i)
+    : [...investments, entry];
+
+  save(); closeModal(); render();
+}
+
+// ─── Delete ───────────────────────────────────────────────
+function openDelModal(id) {
+  deleteId = id;
+  const inv = investments.find(i => i.id === id);
+  document.getElementById("delName").textContent = inv ? inv.name : "";
+  document.getElementById("delOverlay").classList.add("open");
+}
+function closeDelModal() { document.getElementById("delOverlay").classList.remove("open"); }
+function confirmDelete() {
+  investments = investments.filter(i => i.id !== deleteId);
+  save(); closeDelModal(); render();
+}
+
+
+
+// ─── Export to Excel ─────────────────────────────────────
+function exportExcel() {
+  const btn = document.getElementById("exportBtn");
+  btn.textContent = "⏳ Preparing...";
+  btn.disabled = true;
+
+  try {
+    const cd = getCheckDate();
+
+    /* ── Sheet 1: All Holdings ── */
+    const holdingsData = [
+      ["Investment Name", "Category", "Type", "Amount (₹)", "Date", "Holding Period", "Tax Status", "Tax Note", "Notes"],
+      ...investments.map(inv => {
+        const status = getStatus(inv, cd);
+        const hl     = holdingLabel(inv, cd);
+        return [
+          inv.name,
+          CATEGORIES[inv.category]?.label || inv.category,
+          inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum",
+          inv.investedAmount,
+          fmtDate(inv.purchaseDate),
+          hl,
+          status.label,
+          status.detail,
+          inv.notes || "",
+        ];
+      }),
+    ];
+
+    /* ── Sheet 2: Summary ── */
+    const allS    = investments.map(i => getStatus(i, cd));
+    const totInv  = investments.reduce((s,i) => s + i.investedAmount, 0);
+    const ltcgN   = allS.filter(s => s.isLTCG).length;
+    const stcgN   = allS.filter(s => s.isSTCG).length;
+    const ltcgAmt = investments.filter((_,i) => allS[i].isLTCG).reduce((s,i) => s + i.investedAmount, 0);
+    const stcgAmt = investments.filter((_,i) => allS[i].isSTCG).reduce((s,i) => s + i.investedAmount, 0);
+    const sipTot  = sipCommitments.filter(s => s.active).reduce((t,s) => t + s.amount, 0);
+
+    const now = new Date();
+    const loggedThisMonth = investments
+      .filter(i => {
+        if (!i.purchaseDate) return false;
+        const d = new Date(i.purchaseDate);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && i.frequency === "Monthly";
+      })
+      .reduce((s,i) => s + i.investedAmount, 0);
+
+    const summaryData = [
+      ["Metric", "Value"],
+      ["Total Holdings",        investments.length],
+      ["Total Invested (₹)",    totInv],
+      ["LTCG Eligible — Count", ltcgN],
+      ["LTCG Eligible — Amount (₹)", ltcgAmt],
+      ["STCG (wait) — Count",   stcgN],
+      ["STCG (wait) — Amount (₹)", stcgAmt],
+      ["Monthly SIP Commitment (₹)", sipTot],
+      ["This Month Logged (₹)", loggedThisMonth],
+      ["This Month Gap (₹)",    Math.max(0, sipTot - loggedThisMonth)],
+      ["Check Date",            fmtDate(cd)],
+      ["Exported On",           fmtDate(today())],
+    ];
+
+    /* ── Sheet 3: SIP Commitments ── */
+    const sipData = [
+      ["Fund Name", "Category", "Monthly Amount (₹)", "Status", "Notes"],
+      ...sipCommitments.map(s => [
+        s.name,
+        CATEGORIES[s.cat]?.label || s.cat,
+        s.amount,
+        s.active ? "Active" : "Stopped",
+        s.notes || "",
+      ]),
+    ];
+
+    /* ── Build workbook ── */
+    const wb  = XLSX.utils.book_new();
+
+    const ws1 = XLSX.utils.aoa_to_sheet(holdingsData);
+    ws1["!cols"] = [{ wch:36 },{ wch:22 },{ wch:12 },{ wch:14 },{ wch:12 },{ wch:12 },{ wch:16 },{ wch:50 },{ wch:28 }];
+    XLSX.utils.book_append_sheet(wb, ws1, "Holdings");
+
+    const ws2 = XLSX.utils.aoa_to_sheet(summaryData);
+    ws2["!cols"] = [{ wch:30 },{ wch:20 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+
+    const ws3 = XLSX.utils.aoa_to_sheet(sipData);
+    ws3["!cols"] = [{ wch:36 },{ wch:22 },{ wch:18 },{ wch:10 },{ wch:28 }];
+    XLSX.utils.book_append_sheet(wb, ws3, "SIP Commitments");
+
+    /* ── Download ── */
+    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
+    const blob  = new Blob([wbout], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement("a");
+    a.href = url;
+    a.download = `TaxHarvestTracker_${today()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+
+    btn.textContent = "✓ Downloaded!";
+    setTimeout(() => { btn.textContent = "⬇ Export Excel"; btn.disabled = false; }, 2500);
+
+  } catch(e) {
+    alert("Export failed: " + e.message);
+    btn.textContent = "⬇ Export Excel";
+    btn.disabled = false;
+  }
+}
+
+// ─── Auto-slash date input ───────────────────────────────
+function autoSlashDate(input) {
+  let v = input.value.replace(/[^0-9]/g, "");
+  if (v.length >= 3 && v.length <= 4) v = v.slice(0,2) + "/" + v.slice(2);
+  else if (v.length > 4) v = v.slice(0,2) + "/" + v.slice(2,4) + "/" + v.slice(4,8);
+  input.value = v;
+}
+
+// ─── Init ─────────────────────────────────────────────────
+(function init() {
+  document.getElementById("checkDate").value = fmtDate(today());
+  const stored = load();
+  investments = stored || JSON.parse(JSON.stringify(SAMPLE_DATA));
+  if (!stored) save();
+  sipCommitments = loadSips();
+  render();
+})();
+</script>
+</body>
+</html>
