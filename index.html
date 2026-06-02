@@ -143,6 +143,35 @@
   @media(max-width: 420px) {
     .summary-grid { grid-template-columns: 1fr; }
   }
+/* Mobile Responsive Design */
+@media (max-width: 768px) {
+
+  body {
+    padding: 10px;
+  }
+
+  button {
+    width: 100%;
+    margin-top: 8px;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+}
 </style>
 </head>
 <body>
@@ -440,6 +469,7 @@ const firebaseAuth = firebase.auth();
 const firebaseDb = firebase.firestore();
 
 const isFirebaseConfigured = true;
+
 // ─── Storage ─────────────────────────────────────────────
 function load() {
   try {
