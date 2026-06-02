@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>₹ Tax Harvest Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -304,15 +306,16 @@
     </div>
     <div class="form-grid">
       <div class="span2">
-        <label class="field-label">Investment Name *</label>
-        <input id="f_name" placeholder="e.g. Parag Parikh Flexi Cap — SIP Apr 2025"
-          list="fundNameList" autocomplete="off"
+        <label class="field-label" for="f_name">Investment Name *</label>
+        <input id="f_name" name="investment-name"
+          placeholder="e.g. Parag Parikh Flexi Cap"
+          list="fundNameList" autocomplete="on"
           oninput="autoFillCategory()"/>
         <datalist id="fundNameList"></datalist>
       </div>
       <div>
-        <label class="field-label">Category *</label>
-        <select id="f_cat">
+        <label class="field-label" for="f_cat">Category *</label>
+        <select id="f_cat" name="investment-category" autocomplete="off">
           <option value="MF">📈 Mutual Funds / SIP</option>
           <option value="SSY">🌸 Sukanya Samriddhi</option>
           <option value="STOCKS">📊 Stocks / ETFs</option>
@@ -321,23 +324,29 @@
         </select>
       </div>
       <div>
-        <label class="field-label">Type</label>
-        <select id="f_type">
+        <label class="field-label" for="f_type">Type</label>
+        <select id="f_type" name="investment-type" autocomplete="off">
           <option value="Monthly">Monthly SIP</option>
           <option value="Lumpsum">Lumpsum</option>
         </select>
       </div>
       <div>
-        <label class="field-label">Amount (₹) *</label>
-        <input id="f_amount" placeholder="e.g. 6000" type="number"/>
+        <label class="field-label" for="f_amount">Amount (₹) *</label>
+        <input id="f_amount" name="investment-amount"
+          placeholder="e.g. 6000" type="number"
+          autocomplete="off" inputmode="numeric"/>
       </div>
       <div>
-        <label class="field-label">Date</label>
-        <input type="date" id="f_date" style="color-scheme:dark"/>
+        <label class="field-label" for="f_date">Date</label>
+        <input type="text" id="f_date" name="investment-date"
+          placeholder="DD/MM/YYYY" autocomplete="off" readonly
+          style="cursor:pointer"/>
       </div>
       <div class="span2">
-        <label class="field-label">Notes</label>
-        <textarea id="f_notes" rows="2" placeholder="e.g. SIP Apr 2025, step-up, reason for lumpsum..."></textarea>
+        <label class="field-label" for="f_notes">Notes</label>
+        <textarea id="f_notes" name="investment-notes" rows="2"
+          placeholder="e.g. SIP Apr 2025, step-up, reason for lumpsum..."
+          autocomplete="on"></textarea>
       </div>
     </div>
     <div class="form-tip">
@@ -1090,9 +1099,9 @@ function openAddModal() {
   editId = null;
   document.getElementById("modalTitle").textContent = "Add Entry";
   ["f_name","f_amount","f_notes"].forEach(id => document.getElementById(id).value = "");
-  document.getElementById("f_date").value = today();
   document.getElementById("f_cat").value  = "MF";
   document.getElementById("f_type").value = "Monthly";
+  if (window._fpDate) window._fpDate.setDate(new Date(), true);
   populateFundList();
   document.getElementById("formOverlay").classList.add("open");
 }
@@ -1106,7 +1115,7 @@ function openEditModal(id) {
   document.getElementById("f_cat").value    = inv.category;
   document.getElementById("f_type").value   = inv.frequency === "Monthly" ? "Monthly" : "Lumpsum";
   document.getElementById("f_amount").value = inv.investedAmount;
-  document.getElementById("f_date").value   = inv.purchaseDate || today();
+  if (window._fpDate) window._fpDate.setDate(inv.purchaseDate || today(), true);
   populateFundList();
   document.getElementById("f_notes").value  = inv.notes || "";
   document.getElementById("formOverlay").classList.add("open");
