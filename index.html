@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>₹ Tax Harvest Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -34,6 +37,9 @@
   .subtitle { color: var(--muted); font-size: 13px; margin-top: 3px; display: flex; align-items: center; gap: 8px; }
   .save-dot { font-size: 11px; color: var(--amber); animation: pulse 1s infinite; }
   .save-ok  { font-size: 11px; color: var(--green); }
+  .cloud-status { font-size: 11px; color: var(--muted); }
+  .cloud-status.online { color: var(--green); }
+  .cloud-status.error { color: var(--red); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
   /* Buttons */
@@ -152,6 +158,8 @@
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap" class="hdr-btns">
+      <button class="btn-ghost" onclick="signInCloud()" id="signInBtn">Sign in to Sync</button>
+      <button class="btn-ghost" onclick="signOutCloud()" id="signOutBtn" style="display:none">Sign out</button>
       <button class="btn btn-ghost" onclick="exportExcel()" id="exportBtn">⬇ Export Excel</button>
       <button class="btn btn-amber" onclick="openAddModal()">+ Add Entry</button>
     </div>
@@ -165,7 +173,8 @@
   <!-- Storage notice -->
   <div class="notice notice-green">
     <span style="color:var(--green);font-size:14px">💾</span>
-    <span>Data saved to <strong style="color:var(--green)">localStorage</strong> on your device — persists across sessions. Use monthly to log new entries.</span>
+    <span>Data saves locally first. After Firebase setup and sign-in, it also syncs to Firestore cloud.</span>
+    <span class="cloud-status" id="cloudStatus">Cloud sync not configured</span>
   </div>
 
   <!-- Date bar -->
@@ -409,6 +418,35 @@ let expandedId      = null;
 let expandedFund    = null; // for fund view
 let viewMode        = "tranche"; // "tranche" | "fund"
 let saveTimer       = null;
+let cloudUser       = null;
+let cloudDocRef     = null;
+let unsubscribeCloud = null;
+let isApplyingCloud = false;
+
+// Paste your Firebase web app config here after creating the Firebase project.
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyDeR7B8C3Ar3yyNBbKWU2FOYHSbm3Pk56M",
+    authDomain: "aarvisawant-c73d6.firebaseapp.com",
+    projectId: "aarvisawant-c73d6",
+    storageBucket: "aarvisawant-c73d6.firebasestorage.app",
+    messagingSenderId: "514763543441",
+    appId: "1:514763543441:web:837c77091ab013874fc030",
+    measurementId: "G-S9DFJNVRQJ"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
 
 // ─── Storage ─────────────────────────────────────────────
 function load() {
@@ -435,18 +473,121 @@ function save() {
   showSaveDot(true);
   saveTimer = setTimeout(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(investments)); } catch(e) {}
+    saveCloud();
     showSaveDot(false);
   }, 600);
 }
 
 function saveSips() {
   try { localStorage.setItem(SIP_KEY, JSON.stringify(sipCommitments)); } catch(e) {}
+  saveCloud();
 }
 
 function showSaveDot(saving) {
   document.getElementById("saveDot").style.display = saving ? "inline" : "none";
   document.getElementById("saveOk").style.display  = saving ? "none"   : "inline";
   if (!saving) setTimeout(() => { document.getElementById("saveOk").style.display = "none"; }, 2000);
+}
+
+function setCloudStatus(text, state = "") {
+  const status = document.getElementById("cloudStatus");
+  if (!status) return;
+  status.textContent = text;
+  status.className = `cloud-status ${state}`.trim();
+}
+
+function updateCloudButtons() {
+  const signInBtn = document.getElementById("signInBtn");
+  const signOutBtn = document.getElementById("signOutBtn");
+  if (!signInBtn || !signOutBtn) return;
+
+  signInBtn.style.display = cloudUser ? "none" : "inline-block";
+  signOutBtn.style.display = cloudUser ? "inline-block" : "none";
+}
+
+async function signInCloud() {
+  if (!firebaseAuth) {
+    alert("Firebase is not configured yet. Paste your Firebase config into index.html first.");
+    return;
+  }
+
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await firebaseAuth.signInWithPopup(provider);
+  } catch (error) {
+    setCloudStatus(`Sign-in failed: ${error.message}`, "error");
+  }
+}
+
+async function signOutCloud() {
+  if (!firebaseAuth) return;
+  await firebaseAuth.signOut();
+}
+
+function startCloudSync(user) {
+  cloudUser = user;
+  cloudDocRef = firebaseDb.collection("users").doc(user.uid).collection("tracker").doc("main");
+  updateCloudButtons();
+  setCloudStatus(`Syncing as ${user.displayName || user.email || "Google user"}`, "online");
+
+  if (unsubscribeCloud) unsubscribeCloud();
+  unsubscribeCloud = cloudDocRef.onSnapshot(async (snapshot) => {
+    if (!snapshot.exists) {
+      await saveCloud(true);
+      return;
+    }
+
+    const data = snapshot.data() || {};
+    isApplyingCloud = true;
+    investments = Array.isArray(data.investments) ? data.investments : investments;
+    sipCommitments = Array.isArray(data.sipCommitments) ? data.sipCommitments : sipCommitments;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(investments));
+      localStorage.setItem(SIP_KEY, JSON.stringify(sipCommitments));
+    } catch(e) {}
+    render();
+    isApplyingCloud = false;
+    setCloudStatus("Cloud synced", "online");
+  }, (error) => {
+    setCloudStatus(`Cloud sync error: ${error.message}`, "error");
+  });
+}
+
+function stopCloudSync() {
+  if (unsubscribeCloud) unsubscribeCloud();
+  unsubscribeCloud = null;
+  cloudUser = null;
+  cloudDocRef = null;
+  updateCloudButtons();
+  setCloudStatus(isFirebaseConfigured ? "Signed out. Local save only." : "Cloud sync not configured");
+}
+
+async function saveCloud(force = false) {
+  if (!cloudDocRef || isApplyingCloud) return;
+
+  try {
+    await cloudDocRef.set({
+      investments,
+      sipCommitments,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (force) setCloudStatus("Cloud synced", "online");
+  } catch (error) {
+    setCloudStatus(`Cloud save failed: ${error.message}`, "error");
+  }
+}
+
+function initCloudSync() {
+  if (!firebaseAuth || !firebaseDb) {
+    setCloudStatus("Cloud sync not configured");
+    updateCloudButtons();
+    return;
+  }
+
+  firebaseAuth.onAuthStateChanged((user) => {
+    if (user) startCloudSync(user);
+    else stopCloudSync();
+  });
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -1086,6 +1227,7 @@ function autoSlashDate(input) {
   if (!stored) save();
   sipCommitments = loadSips();
   render();
+  initCloudSync();
 })();
 </script>
 </body>
