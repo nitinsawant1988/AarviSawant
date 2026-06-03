@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>₹ Tax Harvest Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"/>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -78,13 +76,35 @@
   #search { flex: 1; min-width: 160px; max-width: 220px; }
 
   /* Inputs */
+  /* Ghost-text inline autocomplete */
+  .ghost-wrap { position: relative; display: block; }
+  .ghost-input, .ghost-shadow {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-family: inherit; padding: 10px 14px;
+    width: 100%; font-size: 14px; outline: none; transition: border .2s;
+    letter-spacing: 0; line-height: 1.5;
+  }
+  .ghost-input:focus { border-color: #F59E0B55; }
+  .ghost-shadow {
+    position: absolute; top: 0; left: 0; pointer-events: none;
+    border-color: transparent; background: transparent;
+    color: #475569; z-index: 0; user-select: none;
+  }
+  .ghost-input { position: relative; z-index: 1; background: transparent; }
+  /* Make the real input bg show through only the typed portion */
+  .ghost-wrap::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--bg); border-radius: 10px; z-index: 0;
+  }
+  textarea.ghost-input, textarea.ghost-shadow { resize: vertical; }
+  textarea.ghost-shadow { resize: none; overflow: hidden; }
+
   input, select, textarea {
     background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
     color: var(--text); font-family: inherit; padding: 10px 14px; width: 100%;
     font-size: 14px; outline: none; transition: border .2s;
   }
   input:focus, select:focus, textarea:focus { border-color: #F59E0B55; }
-  input[type=date]::-webkit-calendar-picker-indicator { filter: invert(.5); cursor: pointer; }
   select option { background: var(--bg2); }
   .field-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 6px; }
 
@@ -167,19 +187,9 @@
   .pill { padding: 5px 10px; font-size: 12px; }
   #search { max-width: 100% !important; min-width: 120px; }
 
-  /* Table → card layout on mobile */
-  .table-wrap { overflow-x: unset; }
-  table, thead, tbody, th, td, tr { display: block; }
-  thead { display: none; }
-  tbody tr { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; padding: 12px 14px; cursor: pointer; }
-  tbody tr:hover { background: #1A2035; }
-  tbody td { padding: 4px 0; border: none; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
-  tbody td::before { content: attr(data-label); font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; margin-right: 8px; }
-  tbody td:first-child { font-size: 14px; font-weight: 700; display: block; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-  tbody td:first-child::before { display: none; }
-  tbody td:last-child { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); justify-content: flex-end; }
-  tbody td:last-child::before { display: none; }
-  tr.expanded-row { border-radius: 0 0 12px 12px; margin-top: -10px; border-top: none; padding: 10px 14px; }
+  /* Table → no side scroll on mobile handled in JS */
+  .table-wrap { overflow-x: auto; }
+  tr.expanded-row { background: var(--bg3); }
 
   .modal { padding: 18px; max-height: 95vh; }
   .form-grid { grid-template-columns: 1fr !important; }
@@ -213,11 +223,13 @@
         <span class="save-ok"  id="saveOk"  style="display:none">✓ saved</span>
       </div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap" class="hdr-btns">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center" class="hdr-btns">
       <button class="btn-ghost" onclick="signInCloud()" id="signInBtn">Sign in to Sync</button>
       <button class="btn-ghost" onclick="signOutCloud()" id="signOutBtn" style="display:none">Sign out</button>
       <button class="btn btn-ghost" onclick="exportExcel()" id="exportBtn">⬇ Export Excel</button>
-      <button class="btn btn-amber" onclick="openAddModal()">+ Add Entry</button>
+      <div id="actionBtns" style="display:none;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-amber" onclick="openAddModal()">+ Add Entry</button>
+      </div>
     </div>
   </div>
 </header>
@@ -307,11 +319,15 @@
     <div class="form-grid">
       <div class="span2">
         <label class="field-label" for="f_name">Investment Name *</label>
-        <input id="f_name" name="investment-name"
-          placeholder="e.g. Parag Parikh Flexi Cap"
-          list="fundNameList" autocomplete="on"
-          oninput="autoFillCategory()"/>
-        <datalist id="fundNameList"></datalist>
+        <div class="ghost-wrap">
+          <input id="f_name" name="investment-name" class="ghost-input"
+            placeholder="e.g. Parag Parikh Flexi Cap"
+            autocomplete="off" spellcheck="false"
+            oninput="ghOnInput(this,'f_name_ghost','f_name');autoFillCategory()"
+            onkeydown="ghOnKey(event,'f_name_ghost','f_name')"
+            onblur="ghClear('f_name_ghost')"/>
+          <input id="f_name_ghost" class="ghost-shadow" tabindex="-1" readonly aria-hidden="true"/>
+        </div>
       </div>
       <div>
         <label class="field-label" for="f_cat">Category *</label>
@@ -332,21 +348,41 @@
       </div>
       <div>
         <label class="field-label" for="f_amount">Amount (₹) *</label>
-        <input id="f_amount" name="investment-amount"
-          placeholder="e.g. 6000" type="number"
-          autocomplete="off" inputmode="numeric"/>
+        <div class="ghost-wrap">
+          <input id="f_amount" name="investment-amount" class="ghost-input"
+            placeholder="e.g. 6000" inputmode="numeric"
+            autocomplete="off" spellcheck="false"
+            oninput="ghOnInput(this,'f_amount_ghost','f_amount')"
+            onkeydown="ghOnKey(event,'f_amount_ghost','f_amount')"
+            onblur="ghClear('f_amount_ghost')"/>
+          <input id="f_amount_ghost" class="ghost-shadow" tabindex="-1" readonly aria-hidden="true"/>
+        </div>
       </div>
       <div>
-        <label class="field-label" for="f_date">Date</label>
-        <input type="text" id="f_date" name="investment-date"
-          placeholder="DD/MM/YYYY" autocomplete="off" readonly
-          style="cursor:pointer"/>
+        <label class="field-label" for="f_date">Date (DD/MM/YYYY)</label>
+        <div class="ghost-wrap">
+          <input id="f_date" name="investment-date" class="ghost-input"
+            placeholder="DD/MM/YYYY" maxlength="10"
+            autocomplete="off" spellcheck="false"
+            oninput="autoSlashDate(this);ghOnInput(this,'f_date_ghost','f_date')"
+            onkeydown="ghOnKey(event,'f_date_ghost','f_date')"
+            onblur="ghClear('f_date_ghost')"/>
+          <input id="f_date_ghost" class="ghost-shadow" tabindex="-1" readonly aria-hidden="true"/>
+        </div>
       </div>
       <div class="span2">
         <label class="field-label" for="f_notes">Notes</label>
-        <textarea id="f_notes" name="investment-notes" rows="2"
-          placeholder="e.g. SIP Apr 2025, step-up, reason for lumpsum..."
-          autocomplete="on"></textarea>
+        <div class="ghost-wrap" style="height:auto">
+          <textarea id="f_notes" name="investment-notes" class="ghost-input" rows="2"
+            placeholder="e.g. SIP Apr 2025, step-up, reason for lumpsum..."
+            autocomplete="off" spellcheck="false"
+            oninput="ghOnInput(this,'f_notes_ghost','f_notes')"
+            onkeydown="ghOnKey(event,'f_notes_ghost','f_notes')"
+            onblur="ghClear('f_notes_ghost')"
+            style="resize:vertical"></textarea>
+          <textarea id="f_notes_ghost" class="ghost-shadow" tabindex="-1" readonly aria-hidden="true"
+            rows="2" style="resize:none"></textarea>
+        </div>
       </div>
     </div>
     <div class="form-tip">
@@ -556,12 +592,17 @@ function setCloudStatus(text, state = "") {
 }
 
 function updateCloudButtons() {
-  const signInBtn = document.getElementById("signInBtn");
+  const signInBtn  = document.getElementById("signInBtn");
   const signOutBtn = document.getElementById("signOutBtn");
+  const actionBtns = document.getElementById("actionBtns");
   if (!signInBtn || !signOutBtn) return;
 
-  signInBtn.style.display = cloudUser ? "none" : "inline-block";
+  signInBtn.style.display  = cloudUser ? "none"  : "inline-block";
   signOutBtn.style.display = cloudUser ? "inline-block" : "none";
+  if (actionBtns) actionBtns.style.display = cloudUser ? "flex" : "none";
+
+  // Re-render so Edit/Del buttons show or hide based on auth state
+  render();
 }
 
 async function signInCloud() {
@@ -771,62 +812,109 @@ function render() {
   document.getElementById("btnFund").style.background    = viewMode === "fund"    ? "#F59E0B" : "transparent";
   document.getElementById("btnFund").style.color         = viewMode === "fund"    ? "#0B0F1A" : "#64748B";
 
+  const isMobile = window.innerWidth < 768;
+  const canEdit  = !!cloudUser;
+
   if (filtered.length === 0) {
     document.getElementById("tableCount").textContent = "No entries found";
-    document.getElementById("tableHead").innerHTML = `<tr>
+    document.getElementById("tableHead").innerHTML = isMobile ? "" : `<tr>
       <th>Investment</th><th>Category</th><th>Invested</th>
       <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
-      <th>Type</th><th>Actions</th></tr>`;
+      <th>Type</th>${canEdit ? "<th>Actions</th>" : ""}</tr>`;
     tbody.innerHTML = `<tr><td colspan="8" style="padding:40px;text-align:center;color:#475569">No investments found</td></tr>`;
 
   } else if (viewMode === "tranche") {
-    // ── TRANCHE VIEW (existing behaviour) ──
     document.getElementById("tableCount").textContent = `${filtered.length} entr${filtered.length !== 1 ? "ies" : "y"}`;
-    document.getElementById("tableHead").innerHTML = `<tr>
-      <th>Investment</th><th>Category</th><th>Invested</th>
-      <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
-      <th>Type</th><th>Actions</th></tr>`;
 
-    tbody.innerHTML = filtered.map(inv => {
-      const cat    = CATEGORIES[inv.category];
-      const status = getStatus(inv, cd);
-      const hl     = holdingLabel(inv, cd);
-      const isExp  = expandedId === inv.id;
+    if (isMobile) {
+      // ── MOBILE CARD LAYOUT ──
+      document.getElementById("tableHead").innerHTML = "";
+      tbody.innerHTML = filtered.map(inv => {
+        const cat    = CATEGORIES[inv.category];
+        const status = getStatus(inv, cd);
+        const hl     = holdingLabel(inv, cd);
+        const isExp  = expandedId === inv.id;
+        return `
+          <tr onclick="toggleExpand(${inv.id})" data-id="${inv.id}" style="cursor:pointer">
+            <td style="padding:0;border:none">
+              <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;${isExp?`border-color:${status.color}55;`:""}">
+                <!-- Fund name -->
+                <div style="font-weight:700;font-size:15px;color:#E2E8F0;margin-bottom:8px;line-height:1.3">${inv.name}</div>
+                <!-- Row 1: category + type -->
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                  <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span>
+                  <span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span>
+                </div>
+                <!-- Row 2: amount · date · holding -->
+                <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
+                  <span style="font-weight:700;color:#F59E0B">${formatINR(inv.investedAmount)}</span>
+                  <span style="color:#64748B">${fmtDate(inv.purchaseDate)}</span>
+                  <span style="color:#94A3B8">${hl}</span>
+                </div>
+                <!-- Row 3: tax badge + actions -->
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span>
+                  ${canEdit ? `<div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+                    <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
+                    <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
+                  </div>` : ""}
+                </div>
+                ${isExp ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:#94A3B8;line-height:1.6">
+                  <span style="color:${status.color};font-weight:700">ℹ️ </span>${status.detail}
+                </div>` : ""}
+                ${inv.notes ? `<div style="margin-top:6px;font-size:11px;color:#475569">${inv.notes}</div>` : ""}
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
 
-      const dataRow = `
-        <tr onclick="toggleExpand(${inv.id})" data-id="${inv.id}" style="border-bottom:1px solid #0F1624;transition:background .12s" class="row-hover">
-          <td>
-            <div style="font-weight:600;font-size:14px;color:#E2E8F0">${inv.name}</div>
-            ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
-          </td>
-          <td data-label="Category"><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
-          <td data-label="Invested" style="font-weight:600;font-size:14px">${formatINR(inv.investedAmount)}</td>
-          <td data-label="Date" style="font-size:13px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
-          <td data-label="Holding" style="font-size:13px;color:#CBD5E1">${hl}</td>
-          <td data-label="Tax Status"><span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span></td>
-          <td data-label="Type"><span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span></td>
-          <td onclick="event.stopPropagation()">
-            <div style="display:flex;gap:6px">
-              <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
-              <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
-            </div>
-          </td>
-        </tr>`;
+    } else {
+      // ── DESKTOP TABLE ──
+      document.getElementById("tableHead").innerHTML = `<tr>
+        <th>Investment</th><th>Category</th><th>Invested</th>
+        <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
+        <th>Type</th>${canEdit ? "<th>Actions</th>" : ""}</tr>`;
 
-      const expandRow = isExp ? `
-        <tr class="expanded-row">
-          <td colspan="8" style="padding:12px 20px 14px 28px">
-            <span style="color:${status.color};font-weight:700">ℹ️ Tax note: </span>
-            <span style="font-size:13px;color:#94A3B8;line-height:1.7">${status.detail}</span>
-          </td>
-        </tr>` : "";
+      tbody.innerHTML = filtered.map(inv => {
+        const cat    = CATEGORIES[inv.category];
+        const status = getStatus(inv, cd);
+        const hl     = holdingLabel(inv, cd);
+        const isExp  = expandedId === inv.id;
 
-      return dataRow + expandRow;
-    }).join("");
+        const dataRow = `
+          <tr onclick="toggleExpand(${inv.id})" data-id="${inv.id}" style="border-bottom:1px solid #0F1624;transition:background .12s" class="row-hover">
+            <td>
+              <div style="font-weight:600;font-size:14px;color:#E2E8F0">${inv.name}</div>
+              ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
+            </td>
+            <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
+            <td style="font-weight:600;font-size:14px">${formatINR(inv.investedAmount)}</td>
+            <td style="font-size:13px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
+            <td style="font-size:13px;color:#CBD5E1">${hl}</td>
+            <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span></td>
+            <td><span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span></td>
+            ${canEdit ? `<td onclick="event.stopPropagation()">
+              <div style="display:flex;gap:6px">
+                <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
+                <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
+              </div>
+            </td>` : ""}
+          </tr>`;
+
+        const expandRow = isExp ? `
+          <tr class="expanded-row">
+            <td colspan="${canEdit ? 8 : 7}" style="padding:12px 20px 14px 28px">
+              <span style="color:${status.color};font-weight:700">ℹ️ Tax note: </span>
+              <span style="font-size:13px;color:#94A3B8;line-height:1.7">${status.detail}</span>
+            </td>
+          </tr>` : "";
+
+        return dataRow + expandRow;
+      }).join("");
+    }
 
   } else {
-    // ── FUND VIEW (grouped by name) ──
-    // Group filtered entries by fund name
+    // ── FUND VIEW ──
     const groups = {};
     filtered.forEach(inv => {
       const key = inv.name.trim().toLowerCase();
@@ -836,76 +924,141 @@ function render() {
 
     const groupArr = Object.values(groups);
     document.getElementById("tableCount").textContent = `${groupArr.length} fund${groupArr.length !== 1 ? "s" : ""} · ${filtered.length} tranches`;
-    document.getElementById("tableHead").innerHTML = `<tr>
-      <th>Fund Name</th><th>Category</th><th>Total Invested</th>
-      <th>Earliest Date</th><th>Tranches</th><th>LTCG / STCG</th>
-      <th>Type</th><th></th></tr>`;
 
-    tbody.innerHTML = groupArr.map(g => {
-      const cat        = CATEGORIES[g.category] || CATEGORIES["MF"];
-      const totalAmt   = g.entries.reduce((s,i) => s + i.investedAmount, 0);
-      const earliest   = g.entries.reduce((min,i) => (!min || i.purchaseDate < min) ? i.purchaseDate : min, null);
-      const statuses   = g.entries.map(i => getStatus(i, cd));
-      const ltcgC      = statuses.filter(s => s.isLTCG).length;
-      const stcgC      = statuses.filter(s => s.isSTCG).length;
-      const hasMonthly = g.entries.some(i => i.frequency === "Monthly");
-      const isExp      = expandedFund === g.name.trim().toLowerCase();
+    if (isMobile) {
+      // ── MOBILE FUND CARD ──
+      document.getElementById("tableHead").innerHTML = "";
+      tbody.innerHTML = groupArr.map(g => {
+        const cat      = CATEGORIES[g.category] || CATEGORIES["MF"];
+        const totalAmt = g.entries.reduce((s,i) => s + i.investedAmount, 0);
+        const earliest = g.entries.reduce((min,i) => (!min || i.purchaseDate < min) ? i.purchaseDate : min, null);
+        const statuses = g.entries.map(i => getStatus(i, cd));
+        const ltcgC    = statuses.filter(s => s.isLTCG).length;
+        const stcgC    = statuses.filter(s => s.isSTCG).length;
+        const isExp    = expandedFund === g.name.trim().toLowerCase();
 
-      // Summary status badge
-      const summaryBadge = ltcgC > 0 && stcgC === 0
-        ? `<span class="tag status-tag" style="background:#10B98122;color:#10B981">All LTCG ✓</span>`
-        : ltcgC === 0 && stcgC > 0
-        ? `<span class="tag status-tag" style="background:#F59E0B22;color:#F59E0B">All STCG</span>`
-        : ltcgC > 0 && stcgC > 0
-        ? `<span class="tag status-tag" style="background:#6366F122;color:#6366F1">${ltcgC} LTCG · ${stcgC} STCG</span>`
-        : `<span class="tag status-tag" style="background:#47556922;color:#475569">—</span>`;
+        const badge = ltcgC > 0 && stcgC === 0 ? `<span class="tag status-tag" style="background:#10B98122;color:#10B981">All LTCG ✓</span>`
+          : ltcgC === 0 && stcgC > 0 ? `<span class="tag status-tag" style="background:#F59E0B22;color:#F59E0B">All STCG</span>`
+          : ltcgC > 0 && stcgC > 0   ? `<span class="tag status-tag" style="background:#6366F122;color:#6366F1">${ltcgC} LTCG · ${stcgC} STCG</span>`
+          : `<span class="tag status-tag" style="background:#47556922;color:#475569">—</span>`;
 
-      const fundRow = `
-        <tr onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')" style="border-bottom:1px solid #0F1624;cursor:pointer;transition:background .12s" class="row-hover">
-          <td>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:13px;color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
-              <div>
-                <div style="font-weight:700;font-size:14px;color:#E2E8F0">${g.name}</div>
-                <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
+        const tranches = isExp ? g.entries.map(inv => {
+          const s  = getStatus(inv, cd);
+          const hl = holdingLabel(inv, cd);
+          return `
+            <div style="padding:10px 0;border-top:1px solid var(--border);margin-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#F59E0B">${formatINR(inv.investedAmount)}</div>
+                  <div style="font-size:11px;color:#64748B;margin-top:2px">${fmtDate(inv.purchaseDate)} · ${hl}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span class="tag status-tag" style="background:${s.color}22;color:${s.color};font-size:11px">${s.badge}</span>
+                  ${canEdit ? `<div onclick="event.stopPropagation()" style="display:flex;gap:4px">
+                    <button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="openEditModal(${inv.id})">Edit</button>
+                    <button class="btn-danger" style="font-size:11px;padding:4px 8px" onclick="openDelModal(${inv.id})">Del</button>
+                  </div>` : ""}
+                </div>
               </div>
-            </div>
-          </td>
-          <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
-          <td style="font-weight:700;font-size:14px;color:#F59E0B">${formatINR(totalAmt)}</td>
-          <td style="font-size:13px;color:#94A3B8">${fmtDate(earliest)}</td>
-          <td style="font-size:13px;color:#CBD5E1">${g.entries.length}</td>
-          <td>${summaryBadge}</td>
-          <td><span style="font-size:12px;color:${hasMonthly?"#10B981":"#64748B"}">${hasMonthly ? "SIP" : "Lumpsum"}</span></td>
-          <td></td>
-        </tr>`;
+              ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:4px">${inv.notes}</div>` : ""}
+            </div>`;
+        }).join("") : "";
 
-      const expandRows = isExp ? g.entries.map(inv => {
-        const status = getStatus(inv, cd);
-        const hl     = holdingLabel(inv, cd);
         return `
-          <tr style="background:#0D1220;border-bottom:1px solid #0F1624">
-            <td style="padding:10px 16px 10px 40px">
-              <div style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</div>
-              ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
-            </td>
-            <td></td>
-            <td style="font-size:13px;font-weight:600;color:#CBD5E1">${formatINR(inv.investedAmount)}</td>
-            <td style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
-            <td style="font-size:12px;color:#94A3B8">${hl}</td>
-            <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color};font-size:11px">${status.badge}</span></td>
-            <td><span style="font-size:11px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly" : "Lumpsum"}</span></td>
-            <td onclick="event.stopPropagation()">
-              <div style="display:flex;gap:5px">
-                <button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 9px" onclick="openEditModal(${inv.id})">Edit</button>
-                <button class="btn-danger" style="font-size:11px;padding:4px 9px" onclick="openDelModal(${inv.id})">Del</button>
+          <tr onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')" style="cursor:pointer">
+            <td style="padding:0;border:none">
+              <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                  <span style="color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
+                  <div style="flex:1">
+                    <div style="font-weight:700;font-size:15px;color:#E2E8F0">${g.name}</div>
+                    <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
+                  </div>
+                  <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</span>
+                </div>
+                <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
+                  <span style="font-weight:700;color:#F59E0B">${formatINR(totalAmt)}</span>
+                  <span style="color:#64748B">from ${fmtDate(earliest)}</span>
+                </div>
+                ${badge}
+                ${tranches}
               </div>
             </td>
           </tr>`;
-      }).join("") : "";
+      }).join("");
 
-      return fundRow + expandRows;
-    }).join("");
+    } else {
+      // ── DESKTOP FUND TABLE ──
+      document.getElementById("tableHead").innerHTML = `<tr>
+        <th>Fund Name</th><th>Category</th><th>Total Invested</th>
+        <th>Earliest Date</th><th>Tranches</th><th>LTCG / STCG</th>
+        <th>Type</th>${canEdit ? "<th></th>" : ""}</tr>`;
+
+      tbody.innerHTML = groupArr.map(g => {
+        const cat        = CATEGORIES[g.category] || CATEGORIES["MF"];
+        const totalAmt   = g.entries.reduce((s,i) => s + i.investedAmount, 0);
+        const earliest   = g.entries.reduce((min,i) => (!min || i.purchaseDate < min) ? i.purchaseDate : min, null);
+        const statuses   = g.entries.map(i => getStatus(i, cd));
+        const ltcgC      = statuses.filter(s => s.isLTCG).length;
+        const stcgC      = statuses.filter(s => s.isSTCG).length;
+        const hasMonthly = g.entries.some(i => i.frequency === "Monthly");
+        const isExp      = expandedFund === g.name.trim().toLowerCase();
+
+        const summaryBadge = ltcgC > 0 && stcgC === 0
+          ? `<span class="tag status-tag" style="background:#10B98122;color:#10B981">All LTCG ✓</span>`
+          : ltcgC === 0 && stcgC > 0
+          ? `<span class="tag status-tag" style="background:#F59E0B22;color:#F59E0B">All STCG</span>`
+          : ltcgC > 0 && stcgC > 0
+          ? `<span class="tag status-tag" style="background:#6366F122;color:#6366F1">${ltcgC} LTCG · ${stcgC} STCG</span>`
+          : `<span class="tag status-tag" style="background:#47556922;color:#475569">—</span>`;
+
+        const fundRow = `
+          <tr onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')" style="border-bottom:1px solid #0F1624;cursor:pointer;transition:background .12s" class="row-hover">
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:13px;color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
+                <div>
+                  <div style="font-weight:700;font-size:14px;color:#E2E8F0">${g.name}</div>
+                  <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span></td>
+            <td style="font-weight:700;font-size:14px;color:#F59E0B">${formatINR(totalAmt)}</td>
+            <td style="font-size:13px;color:#94A3B8">${fmtDate(earliest)}</td>
+            <td style="font-size:13px;color:#CBD5E1">${g.entries.length}</td>
+            <td>${summaryBadge}</td>
+            <td><span style="font-size:12px;color:${hasMonthly?"#10B981":"#64748B"}">${hasMonthly ? "SIP" : "Lumpsum"}</span></td>
+            ${canEdit ? "<td></td>" : ""}
+          </tr>`;
+
+        const expandRows = isExp ? g.entries.map(inv => {
+          const status = getStatus(inv, cd);
+          const hl     = holdingLabel(inv, cd);
+          return `
+            <tr style="background:#0D1220;border-bottom:1px solid #0F1624">
+              <td style="padding:10px 16px 10px 40px">
+                <div style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</div>
+                ${inv.notes ? `<div style="font-size:11px;color:#475569;margin-top:2px">${inv.notes}</div>` : ""}
+              </td>
+              <td></td>
+              <td style="font-size:13px;font-weight:600;color:#CBD5E1">${formatINR(inv.investedAmount)}</td>
+              <td style="font-size:12px;color:#94A3B8">${fmtDate(inv.purchaseDate)}</td>
+              <td style="font-size:12px;color:#94A3B8">${hl}</td>
+              <td><span class="tag status-tag" style="background:${status.color}22;color:${status.color};font-size:11px">${status.badge}</span></td>
+              <td><span style="font-size:11px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly" : "Lumpsum"}</span></td>
+              ${canEdit ? `<td onclick="event.stopPropagation()">
+                <div style="display:flex;gap:5px">
+                  <button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 9px" onclick="openEditModal(${inv.id})">Edit</button>
+                  <button class="btn-danger" style="font-size:11px;padding:4px 9px" onclick="openDelModal(${inv.id})">Del</button>
+                </div>
+              </td>` : ""}
+            </tr>`;
+        }).join("") : "";
+
+        return fundRow + expandRows;
+      }).join("");
+    }
   }
 
   // Legend
@@ -1099,11 +1252,14 @@ function openAddModal() {
   editId = null;
   document.getElementById("modalTitle").textContent = "Add Entry";
   ["f_name","f_amount","f_notes"].forEach(id => document.getElementById(id).value = "");
-  document.getElementById("f_cat").value  = "MF";
-  document.getElementById("f_type").value = "Monthly";
-  if (window._fpDate) window._fpDate.setDate(new Date(), true);
-  populateFundList();
+  ["f_name_ghost","f_amount_ghost","f_date_ghost","f_notes_ghost"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
+  document.getElementById("f_date").value  = fmtDate(today());
+  document.getElementById("f_cat").value   = "MF";
+  document.getElementById("f_type").value  = "Monthly";
   document.getElementById("formOverlay").classList.add("open");
+  setTimeout(() => document.getElementById("f_name").focus(), 100);
 }
 
 function openEditModal(id) {
@@ -1115,9 +1271,11 @@ function openEditModal(id) {
   document.getElementById("f_cat").value    = inv.category;
   document.getElementById("f_type").value   = inv.frequency === "Monthly" ? "Monthly" : "Lumpsum";
   document.getElementById("f_amount").value = inv.investedAmount;
-  if (window._fpDate) window._fpDate.setDate(inv.purchaseDate || today(), true);
-  populateFundList();
+  document.getElementById("f_date").value   = fmtDate(inv.purchaseDate);
   document.getElementById("f_notes").value  = inv.notes || "";
+  ["f_name_ghost","f_amount_ghost","f_date_ghost","f_notes_ghost"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
   document.getElementById("formOverlay").classList.add("open");
 }
 
@@ -1134,11 +1292,17 @@ function saveEntry() {
     name,
     category:       document.getElementById("f_cat").value,
     investedAmount: amount,
-    purchaseDate:   document.getElementById("f_date").value || today(),
+    purchaseDate:   parseDisplayDate(document.getElementById("f_date").value) || today(),
     frequency:      document.getElementById("f_type").value,
     sipAmount:      document.getElementById("f_type").value === "Monthly" ? amount : 0,
     notes:          document.getElementById("f_notes").value.trim(),
   };
+
+  // Record to suggestion history
+  ghRecord("f_name",   name);
+  ghRecord("f_amount", String(amount));
+  ghRecord("f_date",   document.getElementById("f_date").value);
+  if (entry.notes) ghRecord("f_notes", entry.notes);
 
   investments = editId
     ? investments.map(i => i.id === editId ? entry : i)
@@ -1272,15 +1436,123 @@ function exportExcel() {
   }
 }
 
-// ─── Fund name autocomplete ───────────────────────────────
-function populateFundList() {
-  const names = [...new Set(investments.map(i => i.name))].sort();
-  const dl = document.getElementById("fundNameList");
-  if (dl) dl.innerHTML = names.map(n => `<option value="${n}">`).join("");
+// ─── Ghost-text Inline Autocomplete Engine ───────────────
+const GH_STORAGE_KEY = "taxTracker_acHistory_v1";
+let ghHistory = {}; // { fieldId: [ {value, count, lastUsed} ] }
+
+function ghLoad() {
+  try {
+    const raw = localStorage.getItem(GH_STORAGE_KEY);
+    if (raw) ghHistory = JSON.parse(raw);
+  } catch(e) { ghHistory = {}; }
 }
 
+function ghSave() {
+  try { localStorage.setItem(GH_STORAGE_KEY, JSON.stringify(ghHistory)); } catch(e) {}
+}
+
+// Record a used value for a field
+function ghRecord(fieldId, value) {
+  value = value.trim();
+  if (!value) return;
+  if (!ghHistory[fieldId]) ghHistory[fieldId] = [];
+  const existing = ghHistory[fieldId].find(e => e.value.toLowerCase() === value.toLowerCase());
+  if (existing) {
+    existing.count++;
+    existing.lastUsed = Date.now();
+  } else {
+    ghHistory[fieldId].push({ value, count: 1, lastUsed: Date.now() });
+  }
+  ghSave();
+}
+
+// Get best suggestion for a field given current typed text
+function ghSuggest(fieldId, typed) {
+  if (!typed) return "";
+  const pool = [
+    // From history
+    ...(ghHistory[fieldId] || []),
+    // Also seed from investment names for f_name field
+    ...(fieldId === "f_name"
+      ? [...new Set(investments.map(i => i.name))].map(v => ({ value: v, count: 1, lastUsed: 0 }))
+      : []),
+    // Seed notes from existing notes
+    ...(fieldId === "f_notes"
+      ? [...new Set(investments.map(i => i.notes).filter(Boolean))].map(v => ({ value: v, count: 1, lastUsed: 0 }))
+      : []),
+  ];
+
+  // Deduplicate by value (case-insensitive), prefer higher count + recent
+  const seen = new Map();
+  for (const item of pool) {
+    const key = item.value.toLowerCase();
+    if (!seen.has(key) || item.count > seen.get(key).count ||
+        (item.count === seen.get(key).count && item.lastUsed > seen.get(key).lastUsed)) {
+      seen.set(key, item);
+    }
+  }
+
+  const typedLow = typed.toLowerCase();
+  const matches  = [...seen.values()]
+    .filter(e => e.value.toLowerCase().startsWith(typedLow) && e.value.length > typed.length)
+    .sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
+
+  return matches.length > 0 ? matches[0].value : "";
+}
+
+// Called on input event
+function ghOnInput(inputEl, ghostId, fieldId) {
+  const typed    = inputEl.value;
+  const ghostEl  = document.getElementById(ghostId);
+  if (!ghostEl) return;
+
+  if (!typed) { ghostEl.value = ""; return; }
+
+  const suggestion = ghSuggest(fieldId, typed);
+  // Ghost shows full suggestion text; visual trick makes only the completion appear grey
+  ghostEl.value = suggestion || "";
+}
+
+// Called on keydown event
+function ghOnKey(e, ghostId, fieldId) {
+  const inputEl = e.target;
+  const ghostEl = document.getElementById(ghostId);
+  if (!ghostEl || !ghostEl.value) return;
+
+  const suggestion = ghostEl.value;
+  if (!suggestion) return;
+
+  // Accept on Tab, Right Arrow, or Enter (only if ghost is visible)
+  if (e.key === "Tab" || e.key === "ArrowRight" ||
+      (e.key === "Enter" && inputEl.tagName !== "TEXTAREA")) {
+    // Only accept if caret is at end
+    const atEnd = inputEl.selectionStart === inputEl.value.length;
+    if (atEnd && suggestion.toLowerCase().startsWith(inputEl.value.toLowerCase())) {
+      e.preventDefault();
+      inputEl.value = suggestion;
+      ghostEl.value = "";
+      // Trigger autoFillCategory if it's the name field
+      if (fieldId === "f_name") autoFillCategory();
+    }
+  }
+
+  // Dismiss on Escape or Left Arrow
+  if (e.key === "Escape" || e.key === "ArrowLeft") {
+    ghostEl.value = "";
+  }
+}
+
+// Clear ghost on blur
+function ghClear(ghostId) {
+  setTimeout(() => {
+    const el = document.getElementById(ghostId);
+    if (el) el.value = "";
+  }, 150);
+}
+
+// autoFillCategory: auto-set category + type when name matches an existing investment
 function autoFillCategory() {
-  const name = document.getElementById("f_name").value.trim();
+  const name  = document.getElementById("f_name").value.trim();
   const match = investments.find(i => i.name.toLowerCase() === name.toLowerCase());
   if (match) {
     document.getElementById("f_cat").value  = match.category;
@@ -1303,6 +1575,7 @@ function autoSlashDate(input) {
   investments = stored || JSON.parse(JSON.stringify(SAMPLE_DATA));
   if (!stored) save();
   sipCommitments = loadSips();
+  ghLoad();
   render();
   initCloudSync();
 })();
