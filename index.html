@@ -639,16 +639,20 @@ function startCloudSync(user) {
 
     const data = snapshot.data() || {};
     isApplyingCloud = true;
-    investments = Array.isArray(data.investments) ? data.investments : investments;
-    sipCommitments = Array.isArray(data.sipCommitments) ? data.sipCommitments : sipCommitments;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(investments));
-      localStorage.setItem(SIP_KEY, JSON.stringify(sipCommitments));
-    } catch(e) {}
-    render();
-    isApplyingCloud = false;
-    setCloudStatus("Cloud synced", "online");
+      investments    = Array.isArray(data.investments)    ? data.investments    : investments;
+      sipCommitments = Array.isArray(data.sipCommitments) ? data.sipCommitments : sipCommitments;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(investments));
+        localStorage.setItem(SIP_KEY, JSON.stringify(sipCommitments));
+      } catch(e) {}
+      render();
+      setCloudStatus("Cloud synced", "online");
+    } finally {
+      isApplyingCloud = false;
+    }
   }, (error) => {
+    isApplyingCloud = false;
     setCloudStatus(`Cloud sync error: ${error.message}`, "error");
   });
 }
@@ -1308,7 +1312,11 @@ function saveEntry() {
     ? investments.map(i => i.id === editId ? entry : i)
     : [...investments, entry];
 
-  save(); closeModal(); render();
+  // Save locally immediately, then push to cloud
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(investments)); } catch(e) {}
+  save();
+  closeModal();
+  render();
 }
 
 // ─── Delete ───────────────────────────────────────────────
