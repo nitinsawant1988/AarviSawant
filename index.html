@@ -111,6 +111,7 @@
   /* Table */
   .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  @media (max-width: 768px) { table { min-width: unset !important; } }
   thead tr { border-bottom: 1px solid var(--border); }
   th { padding: 13px 16px; text-align: left; font-size: 11px; color: var(--subtle); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
   tbody tr { border-bottom: 1px solid var(--bg3); transition: background .12s; cursor: pointer; }
@@ -191,15 +192,13 @@
   .table-wrap { overflow-x: auto; }
   tr.expanded-row { background: var(--bg3); }
 
-  @media (max-width: 768px) {
-    .table-wrap { overflow-x: unset; background: transparent; border: none; border-radius: 0; }
-    table { display: block; width: 100%; }
-    thead { display: none; }
-    tbody { display: block; width: 100%; }
-    tbody tr { display: block; width: 100%; border: none !important; background: transparent !important; padding: 0 !important; margin: 0 !important; }
-    tbody tr:hover { background: transparent !important; }
-    tbody td { display: block; width: 100%; border: none !important; padding: 0 !important; }
-  }
+  .table-wrap { overflow-x: unset; background: transparent !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+  table { display: block !important; width: 100% !important; min-width: unset !important; }
+  thead { display: none !important; }
+  tbody { display: block !important; width: 100% !important; }
+  tbody tr { display: block !important; width: 100% !important; min-width: unset !important; border: none !important; background: transparent !important; padding: 0 !important; margin: 0 !important; }
+  tbody tr:hover { background: transparent !important; }
+  tbody td { display: block !important; width: 100% !important; min-width: unset !important; max-width: 100% !important; border: none !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important; overflow: hidden !important; }
 
   .modal { padding: 18px; max-height: 95vh; }
   .form-grid { grid-template-columns: 1fr !important; }
