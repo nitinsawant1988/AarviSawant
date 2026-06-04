@@ -291,8 +291,8 @@
     </div>
   </div>
 
-  <!-- Table -->
-  <div class="card table-wrap">
+  <!-- Table / Cards -->
+  <div class="card table-wrap" id="desktopTable">
     <table>
       <thead id="tableHead">
         <tr>
@@ -304,6 +304,7 @@
       <tbody id="tableBody"></tbody>
     </table>
   </div>
+  <div id="mobileCards" style="display:none"></div>
 
   <!-- Legend -->
   <div class="legend" id="legend"></div>
@@ -839,7 +840,18 @@ function render() {
     return matchCat && matchSrch && matchTax;
   });
 
-  const tbody = document.getElementById("tableBody");
+  const tbody      = document.getElementById("tableBody");
+  const mobileEl   = document.getElementById("mobileCards");
+  const desktopEl  = document.getElementById("desktopTable");
+
+  // Show correct container
+  if (window.innerWidth < 768) {
+    desktopEl.style.display = "none";
+    mobileEl.style.display  = "block";
+  } else {
+    desktopEl.style.display = "block";
+    mobileEl.style.display  = "none";
+  }
 
   // Update toggle button styles
   document.getElementById("btnTranche").style.background = viewMode === "tranche" ? "#F59E0B" : "transparent";
@@ -852,55 +864,50 @@ function render() {
 
   if (filtered.length === 0) {
     document.getElementById("tableCount").textContent = "No entries found";
-    document.getElementById("tableHead").innerHTML = isMobile ? "" : `<tr>
-      <th>Investment</th><th>Category</th><th>Invested</th>
-      <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
-      <th>Type</th>${canEdit ? "<th>Actions</th>" : ""}</tr>`;
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:40px;text-align:center;color:#475569">No investments found</td></tr>`;
+    if (isMobile) {
+      mobileEl.innerHTML = `<div style="padding:40px 16px;text-align:center;color:#475569">No investments found</div>`;
+    } else {
+      document.getElementById("tableHead").innerHTML = `<tr>
+        <th>Investment</th><th>Category</th><th>Invested</th>
+        <th>Purchase Date</th><th>Holding</th><th>Tax Status</th>
+        <th>Type</th>${canEdit ? "<th>Actions</th>" : ""}</tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="padding:40px;text-align:center;color:#475569">No investments found</td></tr>`;
+    }
 
   } else if (viewMode === "tranche") {
     document.getElementById("tableCount").textContent = `${filtered.length} entr${filtered.length !== 1 ? "ies" : "y"}`;
 
     if (isMobile) {
-      // ── MOBILE CARD LAYOUT ──
-      document.getElementById("tableHead").innerHTML = "";
-      tbody.innerHTML = filtered.map(inv => {
+      mobileEl.innerHTML = filtered.map(inv => {
         const cat    = CATEGORIES[inv.category];
         const status = getStatus(inv, cd);
         const hl     = holdingLabel(inv, cd);
         const isExp  = expandedId === inv.id;
         return `
-          <tr onclick="toggleExpand(${inv.id})" data-id="${inv.id}" style="cursor:pointer">
-            <td style="padding:0;border:none">
-              <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;${isExp?`border-color:${status.color}55;`:""}">
-                <!-- Fund name -->
-                <div style="font-weight:700;font-size:15px;color:#E2E8F0;margin-bottom:8px;line-height:1.3">${inv.name}</div>
-                <!-- Row 1: category + type -->
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-                  <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span>
-                  <span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span>
-                </div>
-                <!-- Row 2: amount · date · holding -->
-                <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
-                  <span style="font-weight:700;color:#F59E0B">${formatINR(inv.investedAmount)}</span>
-                  <span style="color:#64748B">${fmtDate(inv.purchaseDate)}</span>
-                  <span style="color:#94A3B8">${hl}</span>
-                </div>
-                <!-- Row 3: tax badge + actions -->
-                <div style="display:flex;align-items:center;justify-content:space-between">
-                  <span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span>
-                  ${canEdit ? `<div style="display:flex;gap:6px" onclick="event.stopPropagation()">
-                    <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
-                    <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
-                  </div>` : ""}
-                </div>
-                ${isExp ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:#94A3B8;line-height:1.6">
-                  <span style="color:${status.color};font-weight:700">ℹ️ </span>${status.detail}
-                </div>` : ""}
-                ${inv.notes ? `<div style="margin-top:6px;font-size:11px;color:#475569">${inv.notes}</div>` : ""}
-              </div>
-            </td>
-          </tr>`;
+          <div onclick="toggleExpand(${inv.id})"
+            style="background:var(--bg2);border:1px solid ${isExp ? status.color+"55" : "var(--border)"};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer">
+            <div style="font-weight:700;font-size:15px;color:#E2E8F0;margin-bottom:8px;line-height:1.3">${inv.name}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+              <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.label.split(" ")[0]}</span>
+              <span style="font-size:12px;color:${inv.frequency==="Monthly"?"#10B981":"#64748B"}">${inv.frequency === "Monthly" ? "Monthly SIP" : "Lumpsum"}</span>
+            </div>
+            <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
+              <span style="font-weight:700;color:#F59E0B">${formatINR(inv.investedAmount)}</span>
+              <span style="color:#64748B">${fmtDate(inv.purchaseDate)}</span>
+              <span style="color:#94A3B8">${hl}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <span class="tag status-tag" style="background:${status.color}22;color:${status.color}">${status.badge}</span>
+              ${canEdit ? `<div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+                <button class="btn-ghost btn-sm" onclick="openEditModal(${inv.id})">Edit</button>
+                <button class="btn-danger" onclick="openDelModal(${inv.id})">Del</button>
+              </div>` : ""}
+            </div>
+            ${isExp ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:#94A3B8;line-height:1.6">
+              <span style="color:${status.color};font-weight:700">ℹ️ </span>${status.detail}
+            </div>` : ""}
+            ${inv.notes ? `<div style="margin-top:6px;font-size:11px;color:#475569">${inv.notes}</div>` : ""}
+          </div>`;
       }).join("");
 
     } else {
@@ -962,8 +969,7 @@ function render() {
 
     if (isMobile) {
       // ── MOBILE FUND CARD ──
-      document.getElementById("tableHead").innerHTML = "";
-      tbody.innerHTML = groupArr.map(g => {
+      mobileEl.innerHTML = groupArr.map(g => {
         const cat      = CATEGORIES[g.category] || CATEGORIES["MF"];
         const totalAmt = g.entries.reduce((s,i) => s + i.investedAmount, 0);
         const earliest = g.entries.reduce((min,i) => (!min || i.purchaseDate < min) ? i.purchaseDate : min, null);
@@ -1000,26 +1006,23 @@ function render() {
         }).join("") : "";
 
         return `
-          <tr onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')" style="cursor:pointer">
-            <td style="padding:0;border:none">
-              <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                  <span style="color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
-                  <div style="flex:1">
-                    <div style="font-weight:700;font-size:15px;color:#E2E8F0">${g.name}</div>
-                    <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
-                  </div>
-                  <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</span>
-                </div>
-                <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
-                  <span style="font-weight:700;color:#F59E0B">${formatINR(totalAmt)}</span>
-                  <span style="color:#64748B">from ${fmtDate(earliest)}</span>
-                </div>
-                ${badge}
-                ${tranches}
+          <div onclick="toggleExpandFund('${g.name.trim().toLowerCase()}')"
+            style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="color:#F59E0B;font-weight:700">${isExp ? "▼" : "▶"}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:15px;color:#E2E8F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
+                <div style="font-size:11px;color:#475569;margin-top:2px">${g.entries.length} tranche${g.entries.length!==1?"s":""}</div>
               </div>
-            </td>
-          </tr>`;
+              <span class="tag" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</span>
+            </div>
+            <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
+              <span style="font-weight:700;color:#F59E0B">${formatINR(totalAmt)}</span>
+              <span style="color:#64748B">from ${fmtDate(earliest)}</span>
+            </div>
+            ${badge}
+            ${tranches}
+          </div>`;
       }).join("");
 
     } else {
