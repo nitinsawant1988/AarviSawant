@@ -191,6 +191,16 @@
   .table-wrap { overflow-x: auto; }
   tr.expanded-row { background: var(--bg3); }
 
+  @media (max-width: 768px) {
+    .table-wrap { overflow-x: unset; background: transparent; border: none; border-radius: 0; }
+    table { display: block; width: 100%; }
+    thead { display: none; }
+    tbody { display: block; width: 100%; }
+    tbody tr { display: block; width: 100%; border: none !important; background: transparent !important; padding: 0 !important; margin: 0 !important; }
+    tbody tr:hover { background: transparent !important; }
+    tbody td { display: block; width: 100%; border: none !important; padding: 0 !important; }
+  }
+
   .modal { padding: 18px; max-height: 95vh; }
   .form-grid { grid-template-columns: 1fr !important; }
   .span2 { grid-column: 1 !important; }
@@ -697,20 +707,42 @@ function initCloudSync() {
 // ─── Helpers ─────────────────────────────────────────────
 const today = () => new Date().toISOString().split("T")[0];
 
-// Format stored YYYY-MM-DD → DD/MM/YYYY for display
+// Format any date string → DD/MM/YYYY for display
 function fmtDate(dateStr) {
   if (!dateStr || dateStr === "—") return "—";
-  const [y, m, d] = dateStr.split("-");
-  if (!y || !m || !d) return dateStr;
-  return `${d}/${m}/${y}`;
+  const d = parseDate(dateStr);
+  if (!d || isNaN(d)) return dateStr;
+  const dd   = String(d.getDate()).padStart(2,"0");
+  const mm   = String(d.getMonth()+1).padStart(2,"0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+// Parse any date string (YYYY-MM-DD or DD/MM/YYYY) → JS Date
+function parseDate(str) {
+  if (!str) return null;
+  if (str.includes("-")) return new Date(str); // YYYY-MM-DD
+  if (str.includes("/")) {
+    const p = str.split("/");
+    if (p.length === 3) {
+      // DD/MM/YYYY
+      if (p[2].length === 4) return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);
+      // MM/DD/YYYY fallback
+      return new Date(str);
+    }
+  }
+  return new Date(str);
 }
 
 function monthsDiff(dateStr, checkDate) {
-  const f = new Date(dateStr), t = new Date(checkDate);
+  const f = parseDate(dateStr), t = parseDate(checkDate);
+  if (!f || isNaN(f) || !t || isNaN(t)) return 0;
   return (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth());
 }
 function daysDiff(dateStr, checkDate) {
-  return Math.floor((new Date(checkDate) - new Date(dateStr)) / 86400000);
+  const f = parseDate(dateStr), t = parseDate(checkDate);
+  if (!f || isNaN(f) || !t || isNaN(t)) return 0;
+  return Math.floor((t - f) / 86400000);
 }
 
 function formatINR(v) {
@@ -1114,8 +1146,10 @@ function renderSipPanel() {
   const loggedThisMonth = investments
     .filter(i => {
       if (!i.purchaseDate) return false;
-      const d = new Date(i.purchaseDate);
-      return d.getFullYear() === thisYear && d.getMonth() === thisMonth && i.frequency === "Monthly";
+      const d = parseDate(i.purchaseDate);
+      if (!d || isNaN(d)) return false;
+      return d.getFullYear() === thisYear && d.getMonth() === thisMonth &&
+             i.frequency === "Monthly";
     })
     .reduce((s,i) => s + i.investedAmount, 0);
   const pct        = total > 0 ? Math.min(100, Math.round((loggedThisMonth / total) * 100)) : 0;
@@ -1376,8 +1410,10 @@ function exportExcel() {
     const loggedThisMonth = investments
       .filter(i => {
         if (!i.purchaseDate) return false;
-        const d = new Date(i.purchaseDate);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && i.frequency === "Monthly";
+        const d = parseDate(i.purchaseDate);
+        if (!d || isNaN(d)) return false;
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() &&
+               i.frequency === "Monthly";
       })
       .reduce((s,i) => s + i.investedAmount, 0);
 
